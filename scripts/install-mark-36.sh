@@ -3,9 +3,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SOURCE_CMD="${SCRIPT_DIR}/mdx-open"
+SOURCE_CMD="${SCRIPT_DIR}/mark-36"
 TARGET_DIR="${HOME}/.local/bin"
-TARGET_CMD="${TARGET_DIR}/mdx-open"
+TARGET_CMD="${TARGET_DIR}/mark-36"
 
 if [[ ! -f "${SOURCE_CMD}" ]]; then
   echo "Source command not found: ${SOURCE_CMD}" >&2
@@ -29,5 +29,5 @@ case ":${PATH}:" in
 esac
 
 echo "Usage:"
-echo "  mdx-open /path/to/file.md"
+echo "  mark-36 /path/to/file.md"
 

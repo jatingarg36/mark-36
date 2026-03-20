@@ -15,7 +15,7 @@ CHROME_USER_DATA_DIR="${CHROME_USER_DATA_DIR:-${HOME}/Library/Application Suppor
 CHROME_PROFILE_DIR="${CHROME_PROFILE_DIR:-}"
 
 usage() {
-  echo "Usage: mdx-open /absolute/or/relative/path/to/file.md"
+  echo "Usage: mark-36 /absolute/or/relative/path/to/file.md"
   echo
   echo "Optional env vars:"
   echo "  MDEXT_DIST_DIR      Path to the unpacked extension folder (default: ${DIST_DIR})"
