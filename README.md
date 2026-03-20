@@ -38,7 +38,7 @@ Then in Chrome:
 
 ### New tab workspace
 
-Workspace placeholder
+![Workplace](docs/screenshots/image.png)
 
 ## Contributing
 
