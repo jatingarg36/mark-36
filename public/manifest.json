@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Markdown Notes Workspace",
+  "description": "Create, edit, search, import, and preview markdown notes in a clean full-page workspace.",
+  "version": "1.0.0",
+  "permissions": ["storage", "downloads"],
+  "host_permissions": ["file:///*"],
+  "chrome_url_overrides": {
+    "newtab": "index.html"
+  },
+  "action": {
+    "default_title": "Markdown Notes Workspace"
+  }
+}

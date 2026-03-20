@@ -1,0 +1,233 @@
+import type { Note, Theme, WorkspaceState } from "../types";
+
+const LEGACY_NOTES_KEY = "notes";
+const NOTES_PRIMARY_KEY = "notes_primary_v2";
+const NOTES_BACKUP_KEY = "notes_backup_v2";
+const THEME_KEY = "theme";
+const WORKSPACE_STATE_KEY = "workspace_state_v1";
+const STORAGE_SCHEMA_VERSION = 2;
+const DISK_BACKUP_FILENAME = "MarkdownNotesWorkspace/notes-backup.json";
+const BACKUP_PATH_KEY = "notes_backup_path";
+
+type NotesPayload = {
+  schemaVersion: number;
+  savedAt: string;
+  notes: Note[];
+  checksum: string;
+};
+
+function getStorageArea() {
+  if (typeof chrome !== "undefined" && chrome.storage?.local) {
+    return chrome.storage.local;
+  }
+  throw new Error("chrome.storage.local is unavailable.");
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(value);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function normalizeNotes(input: unknown): Note[] {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+  return input.filter(
+    (item): item is Note =>
+      typeof item === "object" &&
+      item !== null &&
+      typeof (item as Note).id === "string" &&
+      typeof (item as Note).title === "string" &&
+      typeof (item as Note).content === "string"
+  );
+}
+
+function isViewMode(value: unknown): value is WorkspaceState["viewMode"] {
+  return value === "editor" || value === "split" || value === "preview";
+}
+
+function clampSplitRatio(value: number): number {
+  return Math.min(0.8, Math.max(0.2, value));
+}
+
+function normalizeWorkspaceState(input: unknown): WorkspaceState | null {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+
+  const candidate = input as Partial<WorkspaceState>;
+  if (!isViewMode(candidate.viewMode)) {
+    return null;
+  }
+
+  return {
+    activeNoteId: typeof candidate.activeNoteId === "string" ? candidate.activeNoteId : null,
+    viewMode: candidate.viewMode,
+    isSidebarCollapsed: Boolean(candidate.isSidebarCollapsed),
+    syncScrollEnabled: Boolean(candidate.syncScrollEnabled),
+    splitRatio:
+      typeof candidate.splitRatio === "number" ? clampSplitRatio(candidate.splitRatio) : 0.5,
+    searchTerm: typeof candidate.searchTerm === "string" ? candidate.searchTerm : ""
+  };
+}
+
+async function createPayload(notes: Note[]): Promise<NotesPayload> {
+  const serializedNotes = JSON.stringify(notes);
+  const checksum = await sha256Hex(serializedNotes);
+  return {
+    schemaVersion: STORAGE_SCHEMA_VERSION,
+    savedAt: new Date().toISOString(),
+    notes,
+    checksum
+  };
+}
+
+async function readValidPayload(raw: unknown): Promise<NotesPayload | null> {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const payload = raw as Partial<NotesPayload>;
+  if (
+    payload.schemaVersion !== STORAGE_SCHEMA_VERSION ||
+    typeof payload.savedAt !== "string" ||
+    typeof payload.checksum !== "string"
+  ) {
+    return null;
+  }
+
+  const notes = normalizeNotes(payload.notes);
+  const expectedChecksum = await sha256Hex(JSON.stringify(notes));
+  if (expectedChecksum !== payload.checksum) {
+    return null;
+  }
+
+  return {
+    schemaVersion: STORAGE_SCHEMA_VERSION,
+    savedAt: payload.savedAt,
+    notes,
+    checksum: payload.checksum
+  };
+}
+
+async function writeDiskBackup(payload: NotesPayload, backupPath: string): Promise<void> {
+  if (typeof chrome === "undefined" || !chrome.downloads?.download) {
+    return;
+  }
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: "application/json;charset=utf-8"
+  });
+  const url = URL.createObjectURL(blob);
+
+  try {
+    await chrome.downloads.download({
+      url,
+      filename: backupPath,
+      saveAs: false,
+      conflictAction: "overwrite"
+    });
+  } catch (error) {
+    // Backup failures should not block core storage writes.
+    console.error("Disk backup failed", error);
+  } finally {
+    window.setTimeout(() => URL.revokeObjectURL(url), 8_000);
+  }
+}
+
+export async function getAllNotes(): Promise<Note[]> {
+  const storage = getStorageArea();
+  const data = await storage.get([NOTES_PRIMARY_KEY, NOTES_BACKUP_KEY, LEGACY_NOTES_KEY]);
+
+  const primaryPayload = await readValidPayload(data[NOTES_PRIMARY_KEY]);
+  if (primaryPayload) {
+    return primaryPayload.notes;
+  }
+
+  const backupPayload = await readValidPayload(data[NOTES_BACKUP_KEY]);
+  if (backupPayload) {
+    // Auto-repair corrupted/missing primary using valid backup.
+    await storage.set({
+      [NOTES_PRIMARY_KEY]: backupPayload,
+      [LEGACY_NOTES_KEY]: backupPayload.notes
+    });
+    return backupPayload.notes;
+  }
+
+  const legacyNotes = normalizeNotes(data[LEGACY_NOTES_KEY]);
+  if (legacyNotes.length > 0) {
+    // Migrate from legacy format and establish redundancy + checksum.
+    await saveAllNotes(legacyNotes);
+    return legacyNotes;
+  }
+
+  return [];
+}
+
+export async function saveAllNotes(notes: Note[]): Promise<void> {
+  const storage = getStorageArea();
+  const normalizedNotes = normalizeNotes(notes);
+  const nextPayload = await createPayload(normalizedNotes);
+
+  const existing = await storage.get(NOTES_PRIMARY_KEY);
+  const existingPrimary = await readValidPayload(existing[NOTES_PRIMARY_KEY]);
+
+  await storage.set({
+    [NOTES_PRIMARY_KEY]: nextPayload,
+    // Keep previous valid snapshot as backup; fallback to latest payload.
+    [NOTES_BACKUP_KEY]: existingPrimary ?? nextPayload,
+    // Keep legacy mirror for compatibility with old versions.
+    [LEGACY_NOTES_KEY]: normalizedNotes
+  });
+}
+
+export async function getBackupPath(): Promise<string> {
+  const storage = getStorageArea();
+  const data = await storage.get(BACKUP_PATH_KEY);
+  const path = data[BACKUP_PATH_KEY];
+  return typeof path === "string" && path.trim().length > 0 ? path : "";
+}
+
+export async function saveBackupPath(path: string): Promise<void> {
+  const storage = getStorageArea();
+  await storage.set({ [BACKUP_PATH_KEY]: path });
+}
+
+export async function backupNotesToDisk(notes: Note[], backupPath: string): Promise<void> {
+  const normalizedNotes = normalizeNotes(notes);
+  const payload = await createPayload(normalizedNotes);
+  const path = backupPath.trim().length > 0 ? backupPath : DISK_BACKUP_FILENAME;
+  await writeDiskBackup(payload, path);
+}
+
+export async function getTheme(): Promise<Theme> {
+  const storage = getStorageArea();
+  const data = await storage.get(THEME_KEY);
+  const theme = data[THEME_KEY] as Theme | undefined;
+  return theme === "dark" ? "dark" : "light";
+}
+
+export async function saveTheme(theme: Theme): Promise<void> {
+  const storage = getStorageArea();
+  await storage.set({ [THEME_KEY]: theme });
+}
+
+export async function getWorkspaceState(): Promise<WorkspaceState | null> {
+  const storage = getStorageArea();
+  const data = await storage.get(WORKSPACE_STATE_KEY);
+  return normalizeWorkspaceState(data[WORKSPACE_STATE_KEY]);
+}
+
+export async function saveWorkspaceState(state: WorkspaceState): Promise<void> {
+  const storage = getStorageArea();
+  await storage.set({
+    [WORKSPACE_STATE_KEY]: {
+      ...state,
+      splitRatio: clampSplitRatio(state.splitRatio)
+    }
+  });
+}

@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SOURCE_PATH="${BASH_SOURCE[0]}"
+while [[ -L "${SOURCE_PATH}" ]]; do
+  LINK_DIR="$(cd "$(dirname "${SOURCE_PATH}")" && pwd)"
+  SOURCE_PATH="$(readlink "${SOURCE_PATH}")"
+  [[ "${SOURCE_PATH}" != /* ]] && SOURCE_PATH="${LINK_DIR}/${SOURCE_PATH}"
+done
+SCRIPT_DIR="$(cd "$(dirname "${SOURCE_PATH}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+DIST_DIR="${MDEXT_DIST_DIR:-${REPO_ROOT}/dist}"
+CHROME_USER_DATA_DIR="${CHROME_USER_DATA_DIR:-${HOME}/Library/Application Support/Google/Chrome}"
+CHROME_PROFILE_DIR="${CHROME_PROFILE_DIR:-}"
+
+usage() {
+  echo "Usage: mdx-open /absolute/or/relative/path/to/file.md"
+  echo
+  echo "Optional env vars:"
+  echo "  MDEXT_DIST_DIR      Path to the unpacked extension folder (default: ${DIST_DIR})"
+  echo "  CHROME_USER_DATA_DIR  Chrome user data root (default: ${CHROME_USER_DATA_DIR})"
+  echo "  CHROME_PROFILE_DIR    Specific profile directory (optional)"
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+if [[ $# -ne 1 ]]; then
+  usage
+  exit 1
+fi
+
+if [[ ! -d "${DIST_DIR}" ]]; then
+  echo "Extension folder not found at: ${DIST_DIR}" >&2
+  echo "Build and load unpacked extension first (or set MDEXT_DIST_DIR)." >&2
+  exit 1
+fi
+
+INPUT_PATH="$1"
+if [[ ! -f "${INPUT_PATH}" ]]; then
+  echo "File not found: ${INPUT_PATH}" >&2
+  exit 1
+fi
+
+if [[ "${INPUT_PATH##*.}" != "md" && "${INPUT_PATH##*.}" != "MD" ]]; then
+  echo "Expected a .md file: ${INPUT_PATH}" >&2
+  exit 1
+fi
+
+if [[ -n "${CHROME_PROFILE_DIR}" && ! -d "${CHROME_PROFILE_DIR}" ]]; then
+  echo "Chrome profile directory not found: ${CHROME_PROFILE_DIR}" >&2
+  exit 1
+fi
+
+if [[ ! -d "${CHROME_USER_DATA_DIR}" ]]; then
+  echo "Chrome user data directory not found: ${CHROME_USER_DATA_DIR}" >&2
+  exit 1
+fi
+
+ABS_MD_PATH="$(python3 - "$INPUT_PATH" <<'PY'
+import os
+import sys
+print(os.path.realpath(sys.argv[1]))
+PY
+)"
+
+EXTENSION_ID="$(python3 - "${CHROME_USER_DATA_DIR}" "${CHROME_PROFILE_DIR}" "${DIST_DIR}" "${REPO_ROOT}" <<'PY'
+import json
+import os
+import sys
+
+chrome_user_data_dir, chrome_profile_dir, dist_dir, repo_root = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+targets = {os.path.realpath(dist_dir), os.path.realpath(repo_root)}
+
+candidate_files = []
+if chrome_profile_dir:
+    for filename in ("Secure Preferences", "Preferences"):
+        candidate_files.append(os.path.join(chrome_profile_dir, filename))
+else:
+    for profile_name in os.listdir(chrome_user_data_dir):
+        profile_dir = os.path.join(chrome_user_data_dir, profile_name)
+        if not os.path.isdir(profile_dir):
+            continue
+        if profile_name.startswith("Snapshots"):
+            continue
+        for filename in ("Secure Preferences", "Preferences"):
+            candidate_files.append(os.path.join(profile_dir, filename))
+
+for preferences_file in candidate_files:
+    if not os.path.isfile(preferences_file):
+        continue
+    try:
+        with open(preferences_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        continue
+
+    settings = (((data.get("extensions") or {}).get("settings")) or {})
+    for ext_id, cfg in settings.items():
+        path = cfg.get("path")
+        if not path:
+            continue
+        if os.path.realpath(path) in targets:
+            print(ext_id)
+            raise SystemExit(0)
+PY
+)"
+
+if [[ -z "${EXTENSION_ID}" ]]; then
+  echo "Could not find extension ID for ${DIST_DIR} under ${CHROME_USER_DATA_DIR}." >&2
+  echo "Make sure this extension is loaded as unpacked in Chrome." >&2
+  echo "If needed, set CHROME_PROFILE_DIR to the exact profile path (for example: .../Profile 4)." >&2
+  exit 1
+fi
+
+ENCODED_MD_PATH="$(python3 - "${ABS_MD_PATH}" <<'PY'
+import sys
+from urllib.parse import quote
+print(quote(sys.argv[1], safe="/"))
+PY
+)"
+
+TARGET_URL="chrome-extension://${EXTENSION_ID}/index.html?mdPath=${ENCODED_MD_PATH}"
+open -a "Google Chrome" "${TARGET_URL}"
+
