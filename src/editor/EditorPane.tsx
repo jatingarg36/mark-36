@@ -1,4 +1,5 @@
 import type { RefObject, UIEventHandler } from "react";
+import { MarkdownToolbar } from "./MarkdownToolbar";
 
 type EditorPaneProps = {
   title: string;
@@ -35,6 +36,11 @@ export function EditorPane({
         value={title}
         placeholder="Untitled note"
         onChange={(event) => onTitleChange(event.target.value)}
+      />
+      <MarkdownToolbar
+        content={content}
+        onContentChange={onContentChange}
+        textAreaRef={textAreaRef}
       />
       <textarea
         ref={textAreaRef}

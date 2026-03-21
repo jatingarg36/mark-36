@@ -307,10 +307,76 @@ body {
   font-weight: 600;
 }
 
+.markdown-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 12px 0;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  min-width: 0;
+}
+
+.markdown-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.markdown-toolbar-button {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  line-height: 1;
+  border-color: transparent;
+  background: transparent;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.markdown-toolbar-button:hover {
+  border-color: var(--border);
+  background: var(--surface-muted);
+}
+
+.markdown-toolbar-select {
+  min-width: 98px;
+  max-width: 150px;
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-muted);
+  color: var(--text);
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 0.83rem;
+}
+
+.markdown-toolbar-select-block {
+  min-width: 128px;
+}
+
+.markdown-toolbar-measure {
+  position: absolute;
+  left: -9999px;
+  top: -9999px;
+  visibility: hidden;
+  pointer-events: none;
+  display: flex;
+  gap: 4px;
+}
+
 .markdown-input {
   flex: 1;
   resize: none;
-  margin: 12px;
+  margin: 10px 12px 12px;
   padding: 12px;
   font-size: 1.05rem;
   line-height: 1.5;
@@ -529,5 +595,14 @@ body {
 
   .split-layout {
     grid-template-columns: 1fr;
+  }
+
+  .markdown-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .markdown-toolbar-select {
+    flex: 0 1 auto;
+    max-width: none;
   }
 }
