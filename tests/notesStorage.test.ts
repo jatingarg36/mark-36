@@ -107,8 +107,8 @@ describe("notesStorage", () => {
     expect((storage._dump() as any)["notes"]).toEqual(legacyNotes);
   });
 
-  it("themes default to light and can be saved/loaded", async () => {
-    expect(await getTheme()).toBe("light");
+  it("themes default to system and can be saved/loaded", async () => {
+    expect(await getTheme()).toBe("system");
     await saveTheme("dark");
     expect(await getTheme()).toBe("dark");
   });
