@@ -1,8 +1,12 @@
 {
   "name": "mark-36",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": false,
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jatingarg36/mark-36"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

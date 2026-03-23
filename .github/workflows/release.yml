@@ -1,13 +1,13 @@
 name: Publish Package
 
 on:
-  push:
-    tags:
-      - 'v*'
+  release:
+    types: [created]
+    branches: [main]  # fires when you publish a release in GitHub UI
 
 permissions:
-  contents: read
-  id-token: write
+  contents: write    # needed to attach assets to GitHub release
+  id-token: write    # required for OIDC trusted publishing
 
 jobs:
   publish:
@@ -18,10 +18,18 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
           registry-url: https://registry.npmjs.org
 
-      - run: npm ci
-      - run: npm run build
+      - name: Upgrade npm (OIDC requires v11.5.1+)
+        run: npm install -g npm@latest
 
-      - run: npm publish --access public
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Publish to npm
+        run: npm publish --access public
+        # DO NOT set NODE_AUTH_TOKEN — it breaks OIDC auth
