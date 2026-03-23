@@ -3,15 +3,16 @@
 Turn every new tab into your Markdown scratchpad.
 
 This repo contains:
+- A **Chrome extension** — replaces your new tab with a Markdown editor
+- A **CLI helper** (`mark-36`) — opens local `.md` files directly in the extension
 
-- the Chrome extension
-- a helper command (`mark-36`) to open local `.md` files directly in the extension
+---
 
-## 1) Install the extension
+## 1) Install the Chrome Extension
 
+### Option A — Load from npm (recommended)
 ```bash
-npm install
-npm run build
+npm install -g mark-36
 ```
 
 Then in Chrome:
@@ -19,37 +20,64 @@ Then in Chrome:
 1. Open `chrome://extensions/`
 2. Enable **Developer mode**
 3. Click **Load unpacked**
-4. Select the `dist/` folder
-5. Open a new tab
+4. Select the folder printed by running:
+```bash
+   mark-36 --ext-path
+```
+5. Open a new tab ✓
 
-## 2) Install and use the script (`mark-36`)
+### Option B — Download from GitHub Releases
 
-1. In extension details, enable **Allow access to file URLs**
-2. Install the command:
-  ```bash
-   curl -sSL https://raw.githubusercontent.com/jatingarg36/mark-36/main/scripts/install-mark-36.sh | sudo sh
-  ```
-3. Use:
-  ```bash
-   mark-36 /absolute/path/to/file.md
-  ```
+1. Go to [Releases](https://github.com/jatingarg36/mark-36/releases) and download the latest `dist.zip`
+2. Unzip it
+3. Open `chrome://extensions/`
+4. Enable **Developer mode**
+5. Click **Load unpacked** → select the unzipped folder
+6. Open a new tab ✓
 
-## 3) Screenshot placeholders
+---
 
-### New tab workspace
+## 2) Install and use the CLI (`mark-36`)
 
-![Workplace](https://raw.githubusercontent.com/jatingarg36/mark-36/main/docs/screenshots/image.png)
+The CLI lets you open a local `.md` file directly in the extension from your terminal.
 
-## Contributing
+**Prerequisites:** Enable **Allow access to file URLs** in the extension details page (`chrome://extensions/` → mark-36 → Details).
 
-Contributions are welcome.
+**Install:**
+```bash
+curl -sSL https://raw.githubusercontent.com/jatingarg36/mark-36/main/scripts/install-mark-36.sh | sudo sh
+```
+
+**Use:**
+```bash
+mark-36 /absolute/path/to/file.md
+```
+
+---
+
+## 3) Contributing / Local Development
+```bash
+git clone https://github.com/jatingarg36/mark-36.git
+cd mark-36
+npm install
+npm run build
+```
+
+Then load the `dist/` folder as an unpacked extension (see Option B above).
 
 1. Fork this repo
 2. Create a feature branch
 3. Make your changes
 4. Open a pull request with a clear description
 
+---
+
+## Screenshot
+
+![New tab workspace](https://raw.githubusercontent.com/jatingarg36/mark-36/main/docs/screenshots/image.png)
+
+---
+
 ## License
 
 MIT
-
