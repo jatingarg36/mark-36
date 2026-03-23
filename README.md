@@ -38,7 +38,7 @@ Then in Chrome:
 
 ### New tab workspace
 
-![Workplace](docs/screenshots/image.png)
+![Workplace](https://raw.githubusercontent.com/jatingarg36/mark-36/main/docs/screenshots/image.png)
 
 ## Contributing
 
