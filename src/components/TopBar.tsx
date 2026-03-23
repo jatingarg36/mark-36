@@ -1,5 +1,6 @@
 import type { Theme } from "../types";
-import { Archive, ArrowRightFromLine, Download, Keyboard, Link2, Monitor, Moon, Sun, Upload } from "lucide-react";
+import { Archive, ArrowRightFromLine, Download, Focus, Keyboard, Link2, Monitor, Moon, Sun, Upload } from "lucide-react";
+import { Experiments, isEnabled } from "../config/experiments";
 
 type ViewMode = "editor" | "split" | "preview";
 
@@ -23,6 +24,8 @@ type TopBarProps = {
   onBackupNow: () => void;
   fontSize: number;
   onFontSizeChange: (size: number) => void;
+  isZenMode: boolean;
+  onZenModeToggle: () => void;
 };
 
 export function TopBar({
@@ -41,7 +44,9 @@ export function TopBar({
   onShowShortcuts,
   onBackupNow,
   fontSize,
-  onFontSizeChange
+  onFontSizeChange,
+  isZenMode,
+  onZenModeToggle,
 }: TopBarProps) {
   return (
     <header className="topbar">
@@ -206,6 +211,17 @@ export function TopBar({
         </div>
 
         <div className="topbar-divider" />
+
+        {isEnabled(Experiments.ZEN_MODE) && (
+          <button
+            className={`button topbar-icon-btn ${isZenMode ? "active" : ""}`}
+            onClick={onZenModeToggle}
+            aria-label={isZenMode ? "Exit Zen Mode" : "Enter Zen Mode"}
+            title={isZenMode ? "Exit Zen Mode (Cmd/Ctrl+J)" : "Enter Zen Mode (Cmd/Ctrl+J)"}
+          >
+            <Focus aria-hidden="true" size={26} strokeWidth={2} />
+          </button>
+        )}
 
         <button
           className="button topbar-icon-btn"

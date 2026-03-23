@@ -1,5 +1,8 @@
 import { useEffect } from "react";
 import type { RefObject, UIEventHandler } from "react";
+import CodeMirror from "@uiw/react-codemirror";
+import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { Experiments, isEnabled } from "../config/experiments";
 import { MarkdownToolbar } from "./MarkdownToolbar";
 
 type EditorPaneProps = {
@@ -71,15 +74,30 @@ export function EditorPane({
         content={content}
         textAreaRef={textAreaRef}
       />
-      <textarea
-        ref={textAreaRef}
-        className="markdown-input"
-        value={content}
-        placeholder="Write your markdown..."
-        onChange={(event) => onContentChange(event.target.value)}
-        onScroll={onEditorScroll}
-        style={{ fontSize: `${fontSize}px` }}
-      />
+      {isEnabled(Experiments.EDITOR_UPGRADE) ? (
+        <div 
+          className="markdown-input codemirror-wrapper" 
+          style={{ fontSize: `${fontSize}px`, overflow: "auto" }}
+          onScroll={onEditorScroll as any}
+        >
+          <CodeMirror
+            value={content}
+            height="100%"
+            extensions={[markdown({ base: markdownLanguage })]}
+            onChange={(val) => onContentChange(val)}
+          />
+        </div>
+      ) : (
+        <textarea
+          ref={textAreaRef}
+          className="markdown-input"
+          value={content}
+          placeholder="Write your markdown..."
+          onChange={(event) => onContentChange(event.target.value)}
+          onScroll={onEditorScroll}
+          style={{ fontSize: `${fontSize}px` }}
+        />
+      )}
     </section>
   );
 }

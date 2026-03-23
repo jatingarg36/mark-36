@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { UIEventHandler } from "react";
+import { Minimize2 } from "lucide-react";
 import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { PreviewPane } from "./components/PreviewPane";
@@ -167,6 +168,7 @@ export default function App() {
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isNoteSearchOpen, setIsNoteSearchOpen] = useState(false);
+  const [isZenMode, setIsZenMode] = useState(false);
   const [noteSearchQuery, setNoteSearchQuery] = useState("");
   const [noteSearchMatchIndex, setNoteSearchMatchIndex] = useState(0);
   const hydratedRef = useRef(false);
@@ -704,6 +706,11 @@ export default function App() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && isZenMode) {
+        setIsZenMode(false);
+        return;
+      }
+
       const isModifierPressed = event.metaKey || event.ctrlKey;
       if (!isModifierPressed) {
         return;
@@ -724,6 +731,12 @@ export default function App() {
       if (key === "n") {
         event.preventDefault();
         handleCreateNote();
+        return;
+      }
+
+      if (key === "j" && isEnabled(Experiments.ZEN_MODE)) {
+        event.preventDefault();
+        setIsZenMode((prev) => !prev);
         return;
       }
 
@@ -766,14 +779,17 @@ export default function App() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [viewMode, activeNoteId]);
+  }, [viewMode, activeNoteId, isZenMode]);
+
+  const showSidebar = !isSidebarCollapsed && !isZenMode;
+  const showTopBar = !isZenMode;
 
   return (
     <main
-      className={`app-shell ${isSidebarCollapsed ? "sidebar-collapsed" : ""} ${isResizingSidebar ? "resizing-sidebar" : ""}`}
-      style={!isSidebarCollapsed ? { gridTemplateColumns: `${sidebarWidth}px 8px 1fr` } : undefined}
+      className={`app-shell ${isSidebarCollapsed ? "sidebar-collapsed" : ""} ${isResizingSidebar ? "resizing-sidebar" : ""} ${isZenMode ? "zen-mode" : ""}`}
+      style={showSidebar ? { gridTemplateColumns: `${sidebarWidth}px 8px 1fr` } : undefined}
     >
-      {!isSidebarCollapsed ? (
+      {showSidebar ? (
         <>
           <Sidebar
             notes={filteredNotes}
@@ -795,7 +811,17 @@ export default function App() {
         </>
       ) : null}
       <section className="workspace">
-        {isNoteSearchOpen && (
+        {isZenMode && (
+          <button
+            className="zen-mode-exit-btn"
+            onClick={() => setIsZenMode(false)}
+            aria-label="Exit Zen Mode"
+            title="Exit Zen Mode (Esc)"
+          >
+            <Minimize2 aria-hidden="true" size={20} strokeWidth={2} />
+          </button>
+        )}
+        {isNoteSearchOpen && !isZenMode && (
           <NoteSearch
             query={noteSearchQuery}
             onQueryChange={setNoteSearchQuery}
@@ -806,30 +832,34 @@ export default function App() {
             onClose={() => { setIsNoteSearchOpen(false); setNoteSearchQuery(""); }}
           />
         )}
-        <TopBar
-          theme={theme}
-          onThemeToggle={handleToggleTheme}
-          onExport={handleExport}
-          onExportDocx={isEnabled(Experiments.EXPORT_DOCX) ? handleExportDocx : undefined}
-          onImport={handleImport}
-          hasActiveNote={Boolean(activeNote)}
-          isSidebarCollapsed={isSidebarCollapsed}
-          onSidebarToggle={() => {
-            setIsSidebarCollapsed((previous) => {
-              // When expanding, ensure we restore to at least MIN_SIDEBAR_WIDTH
-              if (previous) setSidebarWidth((w) => Math.max(w, MIN_SIDEBAR_WIDTH));
-              return !previous;
-            });
-          }}
-          viewMode={viewMode}
-          onViewModeChange={handleViewModeChange}
-          syncScrollEnabled={syncScrollEnabled}
-          onSyncScrollToggle={() => setSyncScrollEnabled((previous) => !previous)}
-          onShowShortcuts={() => setIsShortcutsOpen(true)}
-          onBackupNow={handleBackupNow}
-          fontSize={fontSize}
-          onFontSizeChange={setFontSize}
-        />
+        {showTopBar && (
+          <TopBar
+            theme={theme}
+            onThemeToggle={handleToggleTheme}
+            onExport={handleExport}
+            onExportDocx={isEnabled(Experiments.EXPORT_DOCX) ? handleExportDocx : undefined}
+            onImport={handleImport}
+            hasActiveNote={Boolean(activeNote)}
+            isSidebarCollapsed={isSidebarCollapsed}
+            onSidebarToggle={() => {
+              setIsSidebarCollapsed((previous) => {
+                // When expanding, ensure we restore to at least MIN_SIDEBAR_WIDTH
+                if (previous) setSidebarWidth((w) => Math.max(w, MIN_SIDEBAR_WIDTH));
+                return !previous;
+              });
+            }}
+            viewMode={viewMode}
+            onViewModeChange={handleViewModeChange}
+            syncScrollEnabled={syncScrollEnabled}
+            onSyncScrollToggle={() => setSyncScrollEnabled((previous) => !previous)}
+            onShowShortcuts={() => setIsShortcutsOpen(true)}
+            onBackupNow={handleBackupNow}
+            fontSize={fontSize}
+            onFontSizeChange={setFontSize}
+            isZenMode={isZenMode}
+            onZenModeToggle={() => setIsZenMode(prev => !prev)}
+          />
+        )}
         <div
           ref={splitLayoutRef}
           className={`split-layout mode-${viewMode} ${isResizingSplit ? "resizing" : ""}`}
