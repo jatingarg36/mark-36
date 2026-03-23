@@ -1,12 +1,16 @@
 import type { Theme } from "../types";
-import { Keyboard } from "lucide-react";
+import { Archive, ArrowRightFromLine, Download, Keyboard, Link2, Monitor, Moon, Sun, Upload } from "lucide-react";
 
 type ViewMode = "editor" | "split" | "preview";
+
+const FONT_SIZE_MIN = 12;
+const FONT_SIZE_MAX = 20;
 
 type TopBarProps = {
   theme: Theme;
   onThemeToggle: () => void;
   onExport: () => void;
+  onExportDocx?: () => void;
   onImport: (file: File) => void;
   hasActiveNote: boolean;
   isSidebarCollapsed: boolean;
@@ -17,12 +21,15 @@ type TopBarProps = {
   onSyncScrollToggle: () => void;
   onShowShortcuts: () => void;
   onBackupNow: () => void;
+  fontSize: number;
+  onFontSizeChange: (size: number) => void;
 };
 
 export function TopBar({
   theme,
   onThemeToggle,
   onExport,
+  onExportDocx,
   onImport,
   hasActiveNote,
   isSidebarCollapsed,
@@ -32,14 +39,28 @@ export function TopBar({
   syncScrollEnabled,
   onSyncScrollToggle,
   onShowShortcuts,
-  onBackupNow
+  onBackupNow,
+  fontSize,
+  onFontSizeChange
 }: TopBarProps) {
   return (
     <header className="topbar">
-      <div className="topbar-actions">
-        <button className="button" onClick={onSidebarToggle}>
-          {isSidebarCollapsed ? "Show Notes" : "Hide Notes"}
-        </button>
+      {/* Left group: sidebar + view mode + sync scroll */}
+      <div className="topbar-group">
+        {isSidebarCollapsed && (
+          <>
+            <button
+              className="button topbar-icon-btn"
+              onClick={onSidebarToggle}
+              title="Show notes panel"
+              aria-label="Show notes panel"
+            >
+              <ArrowRightFromLine aria-hidden="true" size={26} strokeWidth={2} />
+            </button>
+            <div className="topbar-divider" />
+          </>
+        )}
+
         <div className="view-mode-tabs" role="tablist" aria-label="Editor view mode">
           <button
             className={`button ${viewMode === "editor" ? "button-primary" : ""}`}
@@ -66,40 +87,133 @@ export function TopBar({
             Preview
           </button>
         </div>
-        <button className="button" onClick={onThemeToggle}>
-          {theme === "dark" ? "Light Mode" : "Dark Mode"}
+
+        <div className="topbar-divider" />
+
+        <button
+          className={`button topbar-sync-btn ${syncScrollEnabled && viewMode === "split" ? "topbar-sync-btn--active" : ""}`}
+          onClick={onSyncScrollToggle}
+          disabled={viewMode !== "split"}
+          title={syncScrollEnabled ? "Sync scroll: on" : "Sync scroll: off"}
+          aria-label={syncScrollEnabled ? "Disable sync scroll" : "Enable sync scroll"}
+          aria-pressed={syncScrollEnabled}
+        >
+          <Link2 aria-hidden="true" size={16} strokeWidth={2} />
+          Sync
         </button>
-        <button className="button" onClick={onSyncScrollToggle} disabled={viewMode !== "split"}>
-          {syncScrollEnabled ? "Sync Scroll: On" : "Sync Scroll: Off"}
+      </div>
+
+      {/* Right group: theme + file actions + shortcuts */}
+      <div className="topbar-group">
+        <button
+          className="button topbar-icon-btn"
+          onClick={onThemeToggle}
+          title={
+            theme === "light" ? "Switch to dark mode" :
+            theme === "dark"  ? "Follow system theme" :
+                                "Switch to light mode"
+          }
+          aria-label={
+            theme === "light" ? "Switch to dark mode" :
+            theme === "dark"  ? "Follow system theme" :
+                                "Switch to light mode"
+          }
+        >
+          {theme === "light"
+            ? <Sun     aria-hidden="true" size={26} strokeWidth={2} />
+            : theme === "dark"
+            ? <Moon    aria-hidden="true" size={26} strokeWidth={2} />
+            : <Monitor aria-hidden="true" size={26} strokeWidth={2} />}
         </button>
-        <label className="button">
-          Import .md
+
+        <div className="topbar-divider" />
+
+        <label
+          className="button topbar-file-btn"
+          title="Import markdown file"
+          aria-label="Import markdown file"
+        >
+          <Upload aria-hidden="true" size={16} strokeWidth={2} />
+          Import
           <input
             type="file"
-            accept=".md,text/markdown,text/plain"
+            accept=".md,.json,text/markdown,text/plain,application/json"
             hidden
             onChange={(event) => {
               const file = event.target.files?.[0];
-              if (file) {
-                onImport(file);
-              }
+              if (file) onImport(file);
               event.currentTarget.value = "";
             }}
           />
         </label>
-        <button className="button" onClick={onBackupNow}>
-          Backup Now
+
+        <button
+          className="button topbar-file-btn"
+          onClick={onBackupNow}
+          title="Backup notes to disk"
+          aria-label="Backup notes to disk"
+        >
+          <Archive aria-hidden="true" size={16} strokeWidth={2} />
+          Backup
         </button>
-        <button className="button" onClick={onExport} disabled={!hasActiveNote}>
+
+        <button
+          className="button topbar-file-btn"
+          onClick={onExport}
+          disabled={!hasActiveNote}
+          title="Export current note as .md"
+          aria-label="Export current note as markdown"
+        >
+          <Download aria-hidden="true" size={16} strokeWidth={2} />
           Export .md
         </button>
+
+        {onExportDocx && (
+          <button
+            className="button topbar-file-btn"
+            onClick={onExportDocx}
+            disabled={!hasActiveNote}
+            title="Export current note as .docx"
+            aria-label="Export current note as Word document"
+          >
+            <Download aria-hidden="true" size={16} strokeWidth={2} />
+            Export .docx
+          </button>
+        )}
+
+        <div className="topbar-divider" />
+
+        <div className="topbar-font-size-control">
+          <button
+            className="topbar-font-size-btn"
+            onClick={() => onFontSizeChange(Math.max(FONT_SIZE_MIN, fontSize - 1))}
+            disabled={fontSize <= FONT_SIZE_MIN}
+            title={`Decrease font size (${fontSize}px)`}
+            aria-label="Decrease font size"
+          >
+            A−
+          </button>
+          <span className="topbar-font-size-value">{fontSize}</span>
+          <button
+            className="topbar-font-size-btn"
+            onClick={() => onFontSizeChange(Math.min(FONT_SIZE_MAX, fontSize + 1))}
+            disabled={fontSize >= FONT_SIZE_MAX}
+            title={`Increase font size (${fontSize}px)`}
+            aria-label="Increase font size"
+          >
+            A+
+          </button>
+        </div>
+
+        <div className="topbar-divider" />
+
         <button
-          className="button shortcuts-button"
+          className="button topbar-icon-btn"
           onClick={onShowShortcuts}
           aria-label="Show keyboard shortcuts"
-          title="Keyboard Shortcuts"
+          title="Keyboard shortcuts"
         >
-          <Keyboard aria-hidden="true" size={18} strokeWidth={2} />
+          <Keyboard aria-hidden="true" size={26} strokeWidth={2} />
         </button>
       </div>
     </header>

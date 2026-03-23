@@ -9,7 +9,7 @@ export type Note = {
   viewMode?: ViewMode;
 };
 
-export type Theme = "light" | "dark";
+export type Theme = "light" | "dark" | "system";
 
 export type WorkspaceState = {
   activeNoteId: string | null;
@@ -18,4 +18,5 @@ export type WorkspaceState = {
   syncScrollEnabled: boolean;
   splitRatio: number;
   searchTerm: string;
+  fontSize: number;
 };

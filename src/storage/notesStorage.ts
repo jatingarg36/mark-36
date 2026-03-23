@@ -64,6 +64,7 @@ function normalizeWorkspaceState(input: unknown): WorkspaceState | null {
     return null;
   }
 
+  const rawFontSize = typeof candidate.fontSize === "number" ? candidate.fontSize : 14;
   return {
     activeNoteId: typeof candidate.activeNoteId === "string" ? candidate.activeNoteId : null,
     viewMode: candidate.viewMode,
@@ -71,7 +72,8 @@ function normalizeWorkspaceState(input: unknown): WorkspaceState | null {
     syncScrollEnabled: Boolean(candidate.syncScrollEnabled),
     splitRatio:
       typeof candidate.splitRatio === "number" ? clampSplitRatio(candidate.splitRatio) : 0.5,
-    searchTerm: typeof candidate.searchTerm === "string" ? candidate.searchTerm : ""
+    searchTerm: typeof candidate.searchTerm === "string" ? candidate.searchTerm : "",
+    fontSize: Math.min(20, Math.max(12, rawFontSize))
   };
 }
 
@@ -208,12 +210,28 @@ export async function getTheme(): Promise<Theme> {
   const storage = getStorageArea();
   const data = await storage.get(THEME_KEY);
   const theme = data[THEME_KEY] as Theme | undefined;
-  return theme === "dark" ? "dark" : "light";
+  if (theme === "dark" || theme === "light" || theme === "system") return theme;
+  return "system"; // default: follow the browser/OS preference
 }
 
 export async function saveTheme(theme: Theme): Promise<void> {
   const storage = getStorageArea();
   await storage.set({ [THEME_KEY]: theme });
+}
+
+/**
+ * Parses a backup JSON string produced by backupNotesToDisk.
+ * Returns the notes array if the file is valid (correct schema + matching checksum),
+ * or null if the file is unrecognised or corrupted.
+ */
+export async function parseBackupFile(json: string): Promise<Note[] | null> {
+  try {
+    const parsed = JSON.parse(json);
+    const payload = await readValidPayload(parsed);
+    return payload ? payload.notes : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function getWorkspaceState(): Promise<WorkspaceState | null> {

@@ -3,6 +3,7 @@ import type { UIEventHandler } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { PreviewPane } from "./components/PreviewPane";
+import { NoteSearch } from "./components/NoteSearch";
 import { ShortcutsModal } from "./components/ShortcutsModal";
 import { EditorPane } from "./editor/EditorPane";
 import { renderMarkdown } from "./preview/markdownRenderer";
@@ -12,6 +13,7 @@ import {
   getBackupPath,
   getTheme,
   getWorkspaceState,
+  parseBackupFile,
   saveAllNotes,
   saveBackupPath,
   saveTheme,
@@ -19,10 +21,22 @@ import {
 } from "./storage/notesStorage";
 import type { Note, Theme, ViewMode } from "./types";
 import { debounce } from "./utils/debounce";
+import { exportToDocx } from "./utils/exportDocx";
+import { Experiments, isEnabled } from "./config/experiments";
+import {
+  applyChromeThemeColors,
+  clearChromeThemeColors,
+  loadChromeFrameColor,
+  subscribeChromeThemeChanges
+} from "./utils/chromeTheme";
 
 const AUTOSAVE_DELAY_MS = 450;
 const DEFAULT_NOTE_TITLE = "Untitled note";
 const DEFAULT_DISK_BACKUP_PATH = "MarkdownNotesWorkspace/notes-backup.json";
+const DEFAULT_SIDEBAR_WIDTH = 300;
+const MIN_SIDEBAR_WIDTH = 180;
+const MAX_SIDEBAR_WIDTH = 480;
+const SIDEBAR_COLLAPSE_THRESHOLD = 80;
 const MD_PATH_QUERY_KEYS = ["mdPath", "md", "filePath"] as const;
 
 function createEmptyNote(): Note {
@@ -137,14 +151,24 @@ export default function App() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [theme, setTheme] = useState<Theme>("light");
+  const [theme, setTheme] = useState<Theme>("system");
+  const [chromeFrameColor, setChromeFrameColor] = useState<[number, number, number] | null>(null);
+  const [systemIsDark, setSystemIsDark] = useState(
+    () => window.matchMedia("(prefers-color-scheme: dark)").matches
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("split");
   const [syncScrollEnabled, setSyncScrollEnabled] = useState(false);
   const [splitRatio, setSplitRatio] = useState(0.5);
+  const [fontSize, setFontSize] = useState(14);
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const [isResizingSplit, setIsResizingSplit] = useState(false);
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  const [isNoteSearchOpen, setIsNoteSearchOpen] = useState(false);
+  const [noteSearchQuery, setNoteSearchQuery] = useState("");
+  const [noteSearchMatchIndex, setNoteSearchMatchIndex] = useState(0);
   const hydratedRef = useRef(false);
   const splitLayoutRef = useRef<HTMLDivElement | null>(null);
   const editorScrollRef = useRef<HTMLTextAreaElement | null>(null);
@@ -183,9 +207,39 @@ export default function App() {
     []
   );
 
+  // Always track OS/browser preference changes
   useEffect(() => {
-    document.body.dataset.theme = theme;
-  }, [theme]);
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = (e: MediaQueryListEvent) => setSystemIsDark(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  const resolvedTheme = theme === "system" ? (systemIsDark ? "dark" : "light") : theme;
+
+  useEffect(() => {
+    document.body.dataset.theme = resolvedTheme;
+  }, [resolvedTheme]);
+
+  // Load Chrome profile theme color on mount and re-apply when Chrome theme changes
+  useEffect(() => {
+    const load = async () => {
+      const color = await loadChromeFrameColor();
+      setChromeFrameColor(color);
+    };
+    void load();
+    const unsubscribe = subscribeChromeThemeChanges(() => void load());
+    return unsubscribe;
+  }, []);
+
+  // Apply Chrome-derived palette whenever frame color or light/dark mode changes
+  useEffect(() => {
+    if (chromeFrameColor) {
+      applyChromeThemeColors(chromeFrameColor, resolvedTheme === "dark");
+    } else {
+      clearChromeThemeColors();
+    }
+  }, [chromeFrameColor, resolvedTheme]);
 
   useEffect(() => {
     const hydrate = async () => {
@@ -229,6 +283,7 @@ export default function App() {
       setSyncScrollEnabled(savedWorkspaceState?.syncScrollEnabled ?? false);
       setSplitRatio(savedWorkspaceState?.splitRatio ?? 0.5);
       setSearchTerm(savedWorkspaceState?.searchTerm ?? "");
+      setFontSize(savedWorkspaceState?.fontSize ?? 14);
       setTheme(savedTheme);
       hydratedRef.current = true;
     };
@@ -248,7 +303,8 @@ export default function App() {
       isSidebarCollapsed,
       syncScrollEnabled,
       splitRatio: clampSplitRatio(splitRatio),
-      searchTerm
+      searchTerm,
+      fontSize
     });
   }, [
     notes,
@@ -257,7 +313,8 @@ export default function App() {
     isSidebarCollapsed,
     syncScrollEnabled,
     splitRatio,
-    searchTerm
+    searchTerm,
+    fontSize
   ]);
 
   const activeNote = useMemo(
@@ -279,10 +336,32 @@ export default function App() {
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }, [notes, searchTerm]);
 
-  const previewHtml = useMemo(
-    () => renderMarkdown(activeNote?.content ?? "_Start writing markdown on the left._"),
-    [activeNote?.content]
-  );
+  const previewHtml = useMemo(() => {
+    const content = activeNote?.content ?? "_Start writing markdown on the left._";
+    const trimmed = content.trim();
+    if (trimmed) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return renderMarkdown("```json\n" + JSON.stringify(parsed, null, 2) + "\n```");
+      } catch {
+        // not JSON, render as markdown
+      }
+    }
+    return renderMarkdown(content);
+  }, [activeNote?.content]);
+
+  useEffect(() => { setNoteSearchMatchIndex(0); }, [noteSearchQuery, activeNoteId]);
+
+  const noteSearchMatchCount = useMemo(() => {
+    const content = activeNote?.content ?? "";
+    if (!noteSearchQuery.trim() || !content) return 0;
+    const q = noteSearchQuery.toLowerCase();
+    const lower = content.toLowerCase();
+    let count = 0;
+    let idx = lower.indexOf(q);
+    while (idx !== -1) { count++; idx = lower.indexOf(q, idx + 1); }
+    return count;
+  }, [activeNote?.content, noteSearchQuery]);
 
   const persistDebounced = useMemo(
     () =>
@@ -343,22 +422,20 @@ export default function App() {
       return;
     }
 
-    setNotes((previous) => {
-      const remaining = previous.filter((note) => note.id !== noteId);
-      if (remaining.length === 0) {
-        const replacement = createEmptyNote();
-        setActiveNoteId(replacement.id);
-        setViewMode(resolveNoteViewMode(replacement));
-        return [replacement];
-      }
+    const remaining = notes.filter((note) => note.id !== noteId);
+    if (remaining.length === 0) {
+      const replacement = createEmptyNote();
+      setNotes([replacement]);
+      setActiveNoteId(replacement.id);
+      setViewMode(resolveNoteViewMode(replacement));
+      return;
+    }
 
-      if (activeNoteId === noteId) {
-        setActiveNoteId(remaining[0].id);
-        setViewMode(resolveNoteViewMode(remaining[0]));
-      }
-
-      return remaining;
-    });
+    setNotes(remaining);
+    if (activeNoteId === noteId) {
+      setActiveNoteId(remaining[0].id);
+      setViewMode(resolveNoteViewMode(remaining[0]));
+    }
   };
 
   const handleExport = () => {
@@ -381,8 +458,59 @@ export default function App() {
     window.setTimeout(() => URL.revokeObjectURL(url), 5_000);
   };
 
+  const handleExportDocx = async () => {
+    if (!activeNote) return;
+
+    let url: string | null = null;
+    try {
+      const blob = await exportToDocx(activeNote.title, activeNote.content);
+      url = URL.createObjectURL(blob);
+      const safeName = activeNote.title.replace(/[^a-z0-9-_]+/gi, "_").replace(/^_+|_+$/g, "");
+      const filename = `${safeName || "note"}.docx`;
+
+      chrome.downloads.download(
+        { url, filename, conflictAction: "uniquify", saveAs: true },
+        () => {
+          if (chrome.runtime.lastError) {
+            console.error("DOCX download failed:", chrome.runtime.lastError.message);
+            window.alert("Export failed. Please try again.");
+          }
+        }
+      );
+
+      window.setTimeout(() => {
+        if (url) URL.revokeObjectURL(url);
+      }, 5_000);
+    } catch (error) {
+      console.error("Failed to generate DOCX:", error);
+      window.alert("Failed to export document. Please try again.");
+      if (url) URL.revokeObjectURL(url);
+    }
+  };
+
   const handleImport = async (file: File) => {
     const text = await file.text();
+
+    // Backup JSON import
+    if (file.name.toLowerCase().endsWith(".json")) {
+      const backupNotes = await parseBackupFile(text);
+      if (!backupNotes) {
+        window.alert("This file isn't a valid Markdown Notes backup. Only .json files exported by the Backup feature are supported.");
+        return;
+      }
+      const existingIds = new Set(notes.map((n) => n.id));
+      const incoming = backupNotes
+        .filter((n) => !existingIds.has(n.id))
+        .map((n) => ({ ...n, viewMode: resolveNoteViewMode(n) }));
+      if (incoming.length === 0) {
+        window.alert("All notes in this backup already exist — nothing was imported.");
+        return;
+      }
+      setNotes((previous) => [...incoming, ...previous]);
+      return;
+    }
+
+    // Markdown file import
     const now = new Date().toISOString();
     const titleFromFile = file.name.replace(/\.md$/i, "").trim() || "Imported note";
     const note: Note = {
@@ -393,7 +521,6 @@ export default function App() {
       updatedAt: now,
       viewMode: text.trim().length > 0 ? "preview" : "editor"
     };
-
     setNotes((previous) => [note, ...previous]);
     setActiveNoteId(note.id);
     setViewMode(resolveNoteViewMode(note));
@@ -401,7 +528,7 @@ export default function App() {
 
   const handleToggleTheme = () => {
     setTheme((previous) => {
-      const nextTheme = previous === "dark" ? "light" : "dark";
+      const nextTheme = previous === "light" ? "dark" : previous === "dark" ? "system" : "light";
       void saveTheme(nextTheme);
       return nextTheme;
     });
@@ -481,6 +608,34 @@ export default function App() {
   }, [viewMode]);
 
   useEffect(() => {
+    if (!isResizingSidebar) return;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const newWidth = event.clientX;
+      if (newWidth < SIDEBAR_COLLAPSE_THRESHOLD) {
+        setIsResizingSidebar(false);
+        setIsSidebarCollapsed(true);
+        return;
+      }
+      setSidebarWidth(Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, newWidth)));
+    };
+
+    const handlePointerUp = () => setIsResizingSidebar(false);
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [isResizingSidebar]);
+
+  useEffect(() => {
     if (!isShortcutsOpen) {
       return;
     }
@@ -557,6 +712,15 @@ export default function App() {
       const editableTarget = isEditableTarget(event.target);
       const key = event.key.toLowerCase();
 
+      if (key === "f") {
+        event.preventDefault();
+        setIsNoteSearchOpen((prev) => {
+          if (!prev) setNoteSearchQuery("");
+          return !prev;
+        });
+        return;
+      }
+
       if (key === "n") {
         event.preventDefault();
         handleCreateNote();
@@ -602,37 +766,69 @@ export default function App() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [viewMode]);
+  }, [viewMode, activeNoteId]);
 
   return (
-    <main className={`app-shell ${isSidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+    <main
+      className={`app-shell ${isSidebarCollapsed ? "sidebar-collapsed" : ""} ${isResizingSidebar ? "resizing-sidebar" : ""}`}
+      style={!isSidebarCollapsed ? { gridTemplateColumns: `${sidebarWidth}px 8px 1fr` } : undefined}
+    >
       {!isSidebarCollapsed ? (
-        <Sidebar
-          notes={filteredNotes}
-          activeNoteId={activeNoteId}
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          onCollapse={() => setIsSidebarCollapsed(true)}
-          onCreateNote={handleCreateNote}
-          onSelectNote={handleSelectNote}
-          onDeleteNote={handleDeleteNote}
-        />
+        <>
+          <Sidebar
+            notes={filteredNotes}
+            activeNoteId={activeNoteId}
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            onCreateNote={handleCreateNote}
+            onSelectNote={handleSelectNote}
+            onDeleteNote={handleDeleteNote}
+            onSidebarToggle={() => setIsSidebarCollapsed(true)}
+          />
+          <div
+            className="sidebar-resizer"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize notes panel"
+            onPointerDown={() => setIsResizingSidebar(true)}
+          />
+        </>
       ) : null}
       <section className="workspace">
+        {isNoteSearchOpen && (
+          <NoteSearch
+            query={noteSearchQuery}
+            onQueryChange={setNoteSearchQuery}
+            matchIndex={noteSearchMatchIndex}
+            matchCount={noteSearchMatchCount}
+            onPrev={() => setNoteSearchMatchIndex((i) => (i - 1 + noteSearchMatchCount) % Math.max(1, noteSearchMatchCount))}
+            onNext={() => setNoteSearchMatchIndex((i) => (i + 1) % Math.max(1, noteSearchMatchCount))}
+            onClose={() => { setIsNoteSearchOpen(false); setNoteSearchQuery(""); }}
+          />
+        )}
         <TopBar
           theme={theme}
           onThemeToggle={handleToggleTheme}
           onExport={handleExport}
+          onExportDocx={isEnabled(Experiments.EXPORT_DOCX) ? handleExportDocx : undefined}
           onImport={handleImport}
           hasActiveNote={Boolean(activeNote)}
           isSidebarCollapsed={isSidebarCollapsed}
-          onSidebarToggle={() => setIsSidebarCollapsed((previous) => !previous)}
+          onSidebarToggle={() => {
+            setIsSidebarCollapsed((previous) => {
+              // When expanding, ensure we restore to at least MIN_SIDEBAR_WIDTH
+              if (previous) setSidebarWidth((w) => Math.max(w, MIN_SIDEBAR_WIDTH));
+              return !previous;
+            });
+          }}
           viewMode={viewMode}
           onViewModeChange={handleViewModeChange}
           syncScrollEnabled={syncScrollEnabled}
           onSyncScrollToggle={() => setSyncScrollEnabled((previous) => !previous)}
           onShowShortcuts={() => setIsShortcutsOpen(true)}
           onBackupNow={handleBackupNow}
+          fontSize={fontSize}
+          onFontSizeChange={setFontSize}
         />
         <div
           ref={splitLayoutRef}
@@ -657,6 +853,9 @@ export default function App() {
               updatedAt={activeNote?.updatedAt}
               textAreaRef={editorScrollRef}
               onEditorScroll={handleEditorScroll}
+              fontSize={fontSize}
+              noteSearchQuery={isNoteSearchOpen ? noteSearchQuery : ""}
+              noteSearchMatchIndex={noteSearchMatchIndex}
             />
           ) : null}
           {viewMode === "split" ? (
@@ -674,6 +873,9 @@ export default function App() {
               canCopy={hasNoteContent(activeNote ?? undefined)}
               previewContentRef={previewScrollRef}
               onPreviewScroll={handlePreviewScroll}
+              fontSize={fontSize}
+              noteSearchQuery={isNoteSearchOpen ? noteSearchQuery : ""}
+              noteSearchMatchIndex={noteSearchMatchIndex}
             />
           ) : null}
         </div>

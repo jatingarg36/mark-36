@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import type { RefObject, UIEventHandler } from "react";
 import { MarkdownToolbar } from "./MarkdownToolbar";
 
@@ -10,6 +11,9 @@ type EditorPaneProps = {
   updatedAt?: string;
   textAreaRef: RefObject<HTMLTextAreaElement | null>;
   onEditorScroll: UIEventHandler<HTMLTextAreaElement>;
+  fontSize: number;
+  noteSearchQuery?: string;
+  noteSearchMatchIndex?: number;
 };
 
 export function EditorPane({
@@ -20,26 +24,51 @@ export function EditorPane({
   isSaving,
   updatedAt,
   textAreaRef,
-  onEditorScroll
+  onEditorScroll,
+  fontSize,
+  noteSearchQuery = "",
+  noteSearchMatchIndex = 0,
 }: EditorPaneProps) {
+  useEffect(() => {
+    const textarea = textAreaRef.current;
+    if (!textarea || !noteSearchQuery.trim()) return;
+    const lower = content.toLowerCase();
+    const q = noteSearchQuery.toLowerCase();
+    let count = 0;
+    let idx = lower.indexOf(q);
+    while (idx !== -1) {
+      if (count === noteSearchMatchIndex) {
+        textarea.setSelectionRange(idx, idx + q.length);
+        // Scroll the match into the visible area of the textarea
+        const linesBefore = content.slice(0, idx).split("\n").length - 1;
+        const lineHeight = fontSize * 1.6;
+        textarea.scrollTop = Math.max(0, linesBefore * lineHeight - textarea.clientHeight / 2);
+        return;
+      }
+      count++;
+      idx = lower.indexOf(q, idx + 1);
+    }
+  }, [noteSearchQuery, noteSearchMatchIndex, content, fontSize]);
+
   const lastUpdatedLabel = updatedAt
     ? new Date(updatedAt).toLocaleString()
     : "Not saved yet";
 
   return (
     <section className="editor-pane">
-      <div className="editor-meta">
-        <span>{isSaving ? "Saving..." : `Last saved: ${lastUpdatedLabel}`}</span>
+      <div className="editor-header">
+        <input
+          className="title-input"
+          value={title}
+          placeholder="Untitled note"
+          onChange={(event) => onTitleChange(event.target.value)}
+        />
+        <span className="editor-meta">
+          {isSaving ? "Saving…" : lastUpdatedLabel}
+        </span>
       </div>
-      <input
-        className="title-input"
-        value={title}
-        placeholder="Untitled note"
-        onChange={(event) => onTitleChange(event.target.value)}
-      />
       <MarkdownToolbar
         content={content}
-        onContentChange={onContentChange}
         textAreaRef={textAreaRef}
       />
       <textarea
@@ -49,6 +78,7 @@ export function EditorPane({
         placeholder="Write your markdown..."
         onChange={(event) => onContentChange(event.target.value)}
         onScroll={onEditorScroll}
+        style={{ fontSize: `${fontSize}px` }}
       />
     </section>
   );
