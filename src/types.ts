@@ -7,6 +7,10 @@ export type Note = {
   createdAt: string;
   updatedAt: string;
   viewMode?: ViewMode;
+  /** Experiment: SIDEBAR_PINNING — whether this note is pinned to the top */
+  pinned?: boolean;
+  /** Experiment: SIDEBAR_FOLDERS_TAGS — folder this note belongs to */
+  folder?: string;
 };
 
 export type Theme = "light" | "dark" | "system";

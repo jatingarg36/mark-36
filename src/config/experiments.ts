@@ -3,6 +3,10 @@
  *
  * Set a flag to `true` to enable the feature for all users, `false` to disable it.
  * Add a new entry here whenever you want to gate a new feature behind a flag.
+ *
+ * SIDEBAR experiments can be enabled independently or combined freely.
+ * SIDEBAR_FOLDERS_TAGS, SIDEBAR_PINNING, and SIDEBAR_DRAG_DROP layer on top
+ * of each other — enable any subset you like.
  */
 
 export const Experiments = {
@@ -20,6 +24,16 @@ export const Experiments = {
   QOL_FEATURES: "qol_features",
   /** Enable smooth CSS transitions for UI state changes like sidebar collapse */
   SMOOTH_ANIMATIONS: "smooth_animations",
+  /**
+   * Sidebar organisation experiments — mutually exclusive.
+   * Enable at most ONE of the three below at a time.
+   */
+  /** Organise notes into folders and filter by auto-extracted #tags */
+  SIDEBAR_FOLDERS_TAGS: "sidebar_folders_tags",
+  /** Pin important notes to the top of the sidebar */
+  SIDEBAR_PINNING: "sidebar_pinning",
+  /** Manually reorder notes in the sidebar via drag-and-drop */
+  SIDEBAR_DRAG_DROP: "sidebar_drag_drop",
 } as const;
 
 export type ExperimentName = (typeof Experiments)[keyof typeof Experiments];
@@ -32,8 +46,34 @@ const experimentConfig: Record<ExperimentName, boolean> = {
   [Experiments.SCROLL_SYNC_POLISH]: false,
   [Experiments.QOL_FEATURES]: true,
   [Experiments.SMOOTH_ANIMATIONS]: true,
+  // Sidebar experiments (combinable — enable any subset):
+  [Experiments.SIDEBAR_FOLDERS_TAGS]: true,
+  [Experiments.SIDEBAR_PINNING]: true,
+  [Experiments.SIDEBAR_DRAG_DROP]: false,
 };
 
 export function isEnabled(experiment: ExperimentName): boolean {
   return experimentConfig[experiment] ?? false;
+}
+
+/** Union of all sidebar-organisation experiment names. */
+export type SidebarExperiment =
+  | typeof Experiments.SIDEBAR_FOLDERS_TAGS
+  | typeof Experiments.SIDEBAR_PINNING
+  | typeof Experiments.SIDEBAR_DRAG_DROP;
+
+/** Priority-ordered list — first enabled one wins. */
+const SIDEBAR_EXPERIMENTS: readonly SidebarExperiment[] = [
+  Experiments.SIDEBAR_FOLDERS_TAGS,
+  Experiments.SIDEBAR_PINNING,
+  Experiments.SIDEBAR_DRAG_DROP,
+];
+
+/**
+ * Returns the active sidebar-organisation experiment, or `null` if none is
+ * enabled. Because the three experiments are mutually exclusive, this always
+ * returns at most one value regardless of how many flags are set to `true`.
+ */
+export function getActiveSidebarExperiment(): SidebarExperiment | null {
+  return SIDEBAR_EXPERIMENTS.find(isEnabled) ?? null;
 }

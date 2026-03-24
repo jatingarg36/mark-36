@@ -1342,6 +1342,10 @@ body {
   background-color: color-mix(in srgb, var(--surface-muted) 50%, transparent) !important;
 }
 
+.app-shell.zen-mode {
+  grid-template-columns: 1fr;
+}
+
 .app-shell.zen-mode .workspace {
   background: var(--surface-muted);
 }
@@ -1379,4 +1383,242 @@ body {
   background: var(--surface-muted);
   color: var(--text);
   transform: scale(1.05);
+}
+
+/* ── Sidebar experiment: shared section chrome ──────────────────────────── */
+
+.sidebar-section-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 4px 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.sidebar-section-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 6px 0;
+  flex-shrink: 0;
+}
+
+/* ── Sidebar experiment: note item action buttons ───────────────────────── */
+
+/* Wrapper for pin/folder/delete buttons so they sit in one flex group */
+.note-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+/* Generic secondary action button (pin, folder) — same look as delete-note-btn */
+.note-action-btn {
+  opacity: 0;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+
+.note-item:hover .note-action-btn,
+.note-item.active .note-action-btn {
+  opacity: 1;
+}
+
+.note-action-btn:hover {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+/* ── Sidebar experiment: Folders & Tags ─────────────────────────────────── */
+
+.sidebar-tag-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.sidebar-tag-chip {
+  font: inherit;
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.sidebar-tag-chip:hover {
+  color: var(--text);
+  border-color: var(--primary);
+}
+
+.sidebar-tag-chip--active {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.sidebar-folder-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+/* Subtle left-border line connecting folder header to its notes */
+.folder-notes-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-left: 10px;
+  padding-left: 6px;
+  border-left: 1.5px solid var(--border);
+}
+
+/* ── Sidebar experiment: Pinning ────────────────────────────────────────── */
+
+/* Small coloured pin shown on pinned note items */
+.note-pin-indicator {
+  display: inline-flex;
+  align-items: center;
+  color: var(--primary);
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+
+/* ── Sidebar experiment: Drag & Drop ────────────────────────────────────── */
+
+.note-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+  cursor: grab;
+  flex-shrink: 0;
+  margin-right: 4px;
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+
+.note-item:hover .note-drag-handle {
+  opacity: 0.7;
+}
+
+.note-item.drag-over {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface-muted));
+}
+
+.note-item.is-dragging {
+  opacity: 0.4;
+}
+
+/* Ensure note title still truncates correctly when extra elements are present */
+.note-item-top .note-title {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Sidebar: sort control ──────────────────────────────────────────────── */
+
+.sidebar-sort-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.sidebar-sort-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-right: 2px;
+  user-select: none;
+}
+
+.sidebar-sort-btn {
+  font: inherit;
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.sidebar-sort-btn:hover {
+  color: var(--text);
+  border-color: var(--primary);
+}
+
+.sidebar-sort-btn--active {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* Folder section headers that accept drag-and-drop */
+.sidebar-folder-dropzone {
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 4px 6px;
+  transition: background 0.12s, color 0.12s;
+  user-select: none;
+}
+
+.sidebar-folder-dropzone:hover {
+  background: color-mix(in srgb, var(--surface-muted) 80%, var(--border) 20%);
+}
+
+.sidebar-folder-dropzone.folder-drag-over {
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--primary);
+}
+
+/* Chevron that rotates when folder is open */
+.folder-chevron {
+  flex-shrink: 0;
+  transition: transform 0.18s ease;
+  color: var(--text-muted);
+}
+
+.folder-chevron--open {
+  transform: rotate(90deg);
+}
+
+/* Note count badge inside folder header */
+.folder-note-count {
+  margin-left: auto;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 5px;
+  line-height: 1.6;
+  min-width: 18px;
+  text-align: center;
 }

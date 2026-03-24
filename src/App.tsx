@@ -328,16 +328,21 @@ export default function App() {
 
   const filteredNotes = useMemo(() => {
     const normalizedQuery = searchTerm.trim().toLowerCase();
-    if (!normalizedQuery) {
-      return [...notes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+    // Drag-drop experiment: preserve notes array order (array IS the sort order).
+    // Fall back to updatedAt sort when a search term is active.
+    if (isEnabled(Experiments.SIDEBAR_DRAG_DROP) && !normalizedQuery) {
+      return [...notes];
     }
 
-    return notes
-      .filter((note) => {
-        const haystack = `${note.title}\n${note.content}`.toLowerCase();
-        return haystack.includes(normalizedQuery);
-      })
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    const base = normalizedQuery
+      ? notes.filter((note) => {
+          const haystack = `${note.title}\n${note.content}`.toLowerCase();
+          return haystack.includes(normalizedQuery);
+        })
+      : [...notes];
+
+    return base.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }, [notes, searchTerm]);
 
   useEffect(() => { setNoteSearchMatchIndex(0); }, [noteSearchQuery, activeNoteId]);
@@ -426,6 +431,28 @@ export default function App() {
       setActiveNoteId(remaining[0].id);
       setViewMode(resolveNoteViewMode(remaining[0]));
     }
+  };
+
+  const handlePinNote = (noteId: string, pinned: boolean) => {
+    setNotes((previous) =>
+      previous.map((note) => (note.id === noteId ? { ...note, pinned } : note))
+    );
+  };
+
+  const handleSetFolder = (noteId: string, folder: string | undefined) => {
+    setNotes((previous) =>
+      previous.map((note) => (note.id === noteId ? { ...note, folder } : note))
+    );
+  };
+
+  const handleReorderNotes = (noteIds: string[]) => {
+    setNotes((previous) => {
+      const noteMap = new Map(previous.map((n) => [n.id, n]));
+      const idSet = new Set(noteIds);
+      const ordered = noteIds.map((id) => noteMap.get(id)).filter(Boolean) as typeof previous;
+      const rest = previous.filter((n) => !idSet.has(n.id));
+      return [...ordered, ...rest];
+    });
   };
 
   const handleExport = () => {
@@ -815,7 +842,7 @@ export default function App() {
 
   const appShellClasses = [
     "app-shell",
-    !showSidebar ? "sidebar-collapsed" : "",
+    isSidebarCollapsed && !isZenMode ? "sidebar-collapsed" : "",
     isResizingSidebar ? "resizing-sidebar" : "",
     isZenMode ? "zen-mode" : "",
     useSmoothAnimations ? "smooth-animations" : ""
@@ -837,6 +864,9 @@ export default function App() {
             onSelectNote={handleSelectNote}
             onDeleteNote={handleDeleteNote}
             onSidebarToggle={() => setIsSidebarCollapsed(true)}
+            onPinNote={handlePinNote}
+            onSetFolder={handleSetFolder}
+            onReorderNotes={handleReorderNotes}
           />
           <div
             className="sidebar-resizer"
