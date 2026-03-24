@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+MSG_FILE="$1"
+
+# Read the commit message, ignoring lines starting with '#'
+COMMIT_MSG=$(grep -v '^#' "$MSG_FILE" || true)
+
+# Get the first non-empty line
+SUBJECT=$(echo "$COMMIT_MSG" | sed '/^[[:space:]]*$/d' | head -n 1)
+
+if [ -z "$SUBJECT" ] || [ "$SUBJECT" = "<type>: <msg>" ]; then
+  echo "Error: Empty or unedited commit message."
+  exit 1
+fi
+
+# Regex for Conventional Commits
+PATTERN="^(feat|fix|docs|style|refactor|perf|test|chore|build|ci|revert)(\([^() ]+\))?: .+"
+
+if ! [[ "$SUBJECT" =~ $PATTERN ]]; then
+  echo "Error: Commit message does not follow the required format."
+  echo "Expected format: <type>: <msg>"
+  echo "Types: feat, fix, docs, style, refactor, perf, test, chore, build, ci, revert"
+  echo "Actual commit message: $SUBJECT"
+  exit 1
+fi
+
+exit 0
