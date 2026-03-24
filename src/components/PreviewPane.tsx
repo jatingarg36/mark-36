@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject, UIEventHandler } from "react";
 import { Check, Copy, List } from "lucide-react";
 
+import { renderMarkdown } from "../preview/markdownRenderer";
+
 type PreviewPaneProps = {
-  html: string;
+  content: string;
   canCopy: boolean;
   previewContentRef: RefObject<HTMLDivElement | null>;
   onPreviewScroll: UIEventHandler<HTMLDivElement>;
@@ -46,7 +48,6 @@ function walkAndHighlight(node: Node, query: string): void {
 }
 
 import { Experiments, isEnabled } from "../config/experiments";
-import mermaid from "mermaid";
 
 function buildHighlightedHtml(html: string, query: string): string {
   if (!query.trim()) return html;
@@ -128,15 +129,24 @@ function extractPreviewText(root: HTMLElement): string {
   return lines.join("\n").trim();
 }
 
-// Initialize mermaid outside component
-if (isEnabled(Experiments.EXTENDED_MARKDOWN)) {
-  mermaid.initialize({ startOnLoad: false, theme: 'default', suppressErrorRendering: true });
-}
-
-export function PreviewPane({ html, canCopy, previewContentRef, onPreviewScroll, fontSize, noteSearchQuery = "", noteSearchMatchIndex = 0, theme = "light" }: PreviewPaneProps) {
+// Initialize mermaid dynamically inside component
+export function PreviewPane({ content, canCopy, previewContentRef, onPreviewScroll, fontSize, noteSearchQuery = "", noteSearchMatchIndex = 0, theme = "light" }: PreviewPaneProps) {
   const [copied, setCopied] = useState(false);
   const [isTocOpen, setIsTocOpen] = useState(false);
   const tocRef = useRef<HTMLDivElement | null>(null);
+
+  const html = useMemo(() => {
+    const trimmed = content.trim();
+    if (trimmed) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return renderMarkdown("```json\n" + JSON.stringify(parsed, null, 2) + "\n```");
+      } catch {
+        // not JSON, render as markdown
+      }
+    }
+    return renderMarkdown(content);
+  }, [content]);
 
   const highlightedHtml = useMemo(
     () => buildHighlightedHtml(html, noteSearchQuery),
@@ -155,23 +165,28 @@ export function PreviewPane({ html, canCopy, previewContentRef, onPreviewScroll,
 
     // Render Mermaid diagrams
     if (isEnabled(Experiments.EXTENDED_MARKDOWN)) {
-      mermaid.initialize({ startOnLoad: false, theme: theme === 'dark' ? 'dark' : 'default', suppressErrorRendering: true });
       const renderTimer = setTimeout(() => {
         const runMermaid = async () => {
           try {
             const els = el.querySelectorAll<HTMLElement>('.mermaid');
+            if (els.length === 0) return;
+            
+            const m = await import('mermaid');
+            const mermaidAPI = m.default;
+            mermaidAPI.initialize({ startOnLoad: false, theme: theme === 'dark' ? 'dark' : 'default', suppressErrorRendering: true });
+
             for (let i = 0; i < els.length; i++) {
-              const m = els[i];
-              const processedTheme = m.getAttribute('data-processed-theme');
+              const mEl = els[i];
+              const processedTheme = mEl.getAttribute('data-processed-theme');
               if (processedTheme === theme) continue;
 
-              m.setAttribute('data-processed-theme', theme);
-              m.setAttribute('data-processed', 'true');
+              mEl.setAttribute('data-processed-theme', theme);
+              mEl.setAttribute('data-processed', 'true');
               try {
-                const code = m.getAttribute('data-code') || m.textContent || '';
+                const code = mEl.getAttribute('data-code') || mEl.textContent || '';
                 const id = `mermaid-${Date.now()}-${i}`;
-                const { svg } = await mermaid.render(id, code);
-                m.innerHTML = svg;
+                const { svg } = await mermaidAPI.render(id, code);
+                mEl.innerHTML = svg;
               } catch (e) {
                 // Squelch errors for incomplete syntax as the user is typing
               }

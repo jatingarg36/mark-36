@@ -1,15 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import type { UIEventHandler } from "react";
 import { Minimize2 } from "lucide-react";
 import "katex/dist/katex.min.css";
 import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
-import { PreviewPane } from "./components/PreviewPane";
 import { NoteSearch } from "./components/NoteSearch";
 import { ShortcutsModal } from "./components/ShortcutsModal";
 import { StatusBar } from "./components/StatusBar";
-import { EditorPane } from "./editor/EditorPane";
-import { renderMarkdown } from "./preview/markdownRenderer";
+
+const EditorPane = lazy(() => import("./editor/EditorPane").then(m => ({ default: m.EditorPane })));
+const PreviewPane = lazy(() => import("./components/PreviewPane").then(m => ({ default: m.PreviewPane })));
 import {
   backupNotesToDisk,
   getAllNotes,
@@ -339,20 +339,6 @@ export default function App() {
       })
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }, [notes, searchTerm]);
-
-  const previewHtml = useMemo(() => {
-    const content = activeNote?.content ?? "_Start writing markdown on the left._";
-    const trimmed = content.trim();
-    if (trimmed) {
-      try {
-        const parsed = JSON.parse(trimmed);
-        return renderMarkdown("```json\n" + JSON.stringify(parsed, null, 2) + "\n```");
-      } catch {
-        // not JSON, render as markdown
-      }
-    }
-    return renderMarkdown(content);
-  }, [activeNote?.content]);
 
   useEffect(() => { setNoteSearchMatchIndex(0); }, [noteSearchQuery, activeNoteId]);
 
@@ -925,19 +911,21 @@ export default function App() {
           }
         >
           {viewMode !== "preview" ? (
-            <EditorPane
-              title={activeNote?.title ?? ""}
-              content={activeNote?.content ?? ""}
-              onTitleChange={(value) => updateActiveNote({ title: value })}
-              onContentChange={(value) => updateActiveNote({ content: value })}
-              isSaving={isSaving}
-              updatedAt={activeNote?.updatedAt}
-              textAreaRef={editorScrollRef}
-              onEditorScroll={handleEditorScroll}
-              fontSize={fontSize}
-              noteSearchQuery={isNoteSearchOpen ? noteSearchQuery : ""}
-              noteSearchMatchIndex={noteSearchMatchIndex}
-            />
+            <Suspense fallback={<div className="pane-placeholder" />}>
+              <EditorPane
+                title={activeNote?.title ?? ""}
+                content={activeNote?.content ?? ""}
+                onTitleChange={(value) => updateActiveNote({ title: value })}
+                onContentChange={(value) => updateActiveNote({ content: value })}
+                isSaving={isSaving}
+                updatedAt={activeNote?.updatedAt}
+                textAreaRef={editorScrollRef}
+                onEditorScroll={handleEditorScroll}
+                fontSize={fontSize}
+                noteSearchQuery={isNoteSearchOpen ? noteSearchQuery : ""}
+                noteSearchMatchIndex={noteSearchMatchIndex}
+              />
+            </Suspense>
           ) : null}
           {viewMode === "split" ? (
             <div
@@ -949,16 +937,18 @@ export default function App() {
             />
           ) : null}
           {viewMode !== "editor" ? (
-            <PreviewPane
-              html={previewHtml}
-              canCopy={hasNoteContent(activeNote ?? undefined)}
-              previewContentRef={previewScrollRef}
-              onPreviewScroll={handlePreviewScroll}
-              fontSize={fontSize}
-              noteSearchQuery={isNoteSearchOpen ? noteSearchQuery : ""}
-              noteSearchMatchIndex={noteSearchMatchIndex}
-              theme={resolvedTheme}
-            />
+            <Suspense fallback={<div className="pane-placeholder" />}>
+              <PreviewPane
+                content={activeNote?.content ?? "_Start writing markdown on the left._"}
+                canCopy={hasNoteContent(activeNote ?? undefined)}
+                previewContentRef={previewScrollRef}
+                onPreviewScroll={handlePreviewScroll}
+                fontSize={fontSize}
+                noteSearchQuery={isNoteSearchOpen ? noteSearchQuery : ""}
+                noteSearchMatchIndex={noteSearchMatchIndex}
+                theme={resolvedTheme}
+              />
+            </Suspense>
           ) : null}
         </div>
         <StatusBar content={activeNote?.content ?? ""} />
