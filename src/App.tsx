@@ -822,12 +822,25 @@ export default function App() {
   const showSidebar = !isSidebarCollapsed && !isZenMode;
   const showTopBar = !isZenMode;
 
+  const useSmoothAnimations = isEnabled(Experiments.SMOOTH_ANIMATIONS);
+
+  // If smooth animations are enabled, we keep the sidebar mounted to animate its width to 0
+  const mountSidebar = useSmoothAnimations ? !isZenMode : showSidebar;
+
+  const appShellClasses = [
+    "app-shell",
+    !showSidebar ? "sidebar-collapsed" : "",
+    isResizingSidebar ? "resizing-sidebar" : "",
+    isZenMode ? "zen-mode" : "",
+    useSmoothAnimations ? "smooth-animations" : ""
+  ].filter(Boolean).join(" ");
+
   return (
     <main
-      className={`app-shell ${!showSidebar ? "sidebar-collapsed" : ""} ${isResizingSidebar ? "resizing-sidebar" : ""} ${isZenMode ? "zen-mode" : ""}`}
-      style={showSidebar ? { gridTemplateColumns: `${sidebarWidth}px 8px 1fr` } : undefined}
+      className={appShellClasses}
+      style={mountSidebar ? { gridTemplateColumns: !showSidebar ? "0px 0px 1fr" : `${sidebarWidth}px 8px 1fr` } : undefined}
     >
-      {showSidebar ? (
+      {mountSidebar ? (
         <>
           <Sidebar
             notes={filteredNotes}

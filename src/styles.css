@@ -68,8 +68,16 @@ body {
   overflow: hidden;
 }
 
+.app-shell.smooth-animations {
+  transition: grid-template-columns 0.3s cubic-bezier(0.2, 0, 0, 1);
+}
+
 .app-shell.sidebar-collapsed {
   grid-template-columns: 1fr;
+}
+
+.app-shell.smooth-animations.sidebar-collapsed {
+  grid-template-columns: 0px 0px 1fr;
 }
 
 .app-shell.resizing-sidebar {
@@ -86,6 +94,19 @@ body {
   overflow: hidden;
 }
 
+.app-shell.smooth-animations .sidebar {
+  transition: opacity 0.3s cubic-bezier(0.2, 0, 0, 1), padding 0.3s cubic-bezier(0.2, 0, 0, 1), transform 0.3s cubic-bezier(0.2, 0, 0, 1);
+  transform-origin: left center;
+}
+
+.app-shell.smooth-animations.sidebar-collapsed .sidebar {
+  opacity: 0;
+  padding-left: 0;
+  padding-right: 0;
+  transform: translateX(-10px);
+  pointer-events: none;
+}
+
 .sidebar-resizer {
   width: 8px;
   position: relative;
@@ -93,6 +114,15 @@ body {
   touch-action: none;
   background: transparent;
   flex-shrink: 0;
+}
+
+.app-shell.smooth-animations .sidebar-resizer {
+  transition: opacity 0.2s ease;
+}
+
+.app-shell.smooth-animations.sidebar-collapsed .sidebar-resizer {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .sidebar-resizer::before {
@@ -198,10 +228,23 @@ body {
   width: 100%;
 }
 
+.note-item {
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
 .note-item:hover,
 .note-item.active {
   background: var(--surface-muted);
   border-color: var(--border);
+}
+
+.note-item:hover:not(.active) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(20, 28, 65, 0.04);
+}
+
+.note-item:active {
+  transform: scale(0.98);
 }
 
 .note-item-top {
@@ -369,6 +412,27 @@ body {
   background: var(--surface-muted);
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
+}
+
+.button,
+.sidebar-icon-btn,
+.topbar-icon-btn,
+.topbar-font-size-btn {
+  transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1), background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.button:hover:not(:disabled),
+.sidebar-icon-btn:hover:not(:disabled),
+.topbar-icon-btn:hover:not(:disabled),
+.topbar-font-size-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.button:active:not(:disabled),
+.sidebar-icon-btn:active:not(:disabled),
+.topbar-icon-btn:active:not(:disabled),
+.topbar-font-size-btn:active:not(:disabled) {
+  transform: scale(0.96);
 }
 
 .button:hover:not(:disabled) {
@@ -560,6 +624,21 @@ body {
   background: transparent;
   white-space: nowrap;
   color: var(--text);
+}
+
+.markdown-toolbar-button,
+.markdown-toolbar-expand-btn {
+  transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1), background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.markdown-toolbar-button:hover,
+.markdown-toolbar-expand-btn:hover {
+  transform: translateY(-1px);
+}
+
+.markdown-toolbar-button:active,
+.markdown-toolbar-expand-btn:active {
+  transform: scale(0.94);
 }
 
 .markdown-toolbar-button:hover {

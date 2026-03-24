@@ -18,6 +18,8 @@ export const Experiments = {
   SCROLL_SYNC_POLISH: "scroll_sync_polish",
   /** Enable Quality of Life features (Word/Reading counter, Image drag & drop) */
   QOL_FEATURES: "qol_features",
+  /** Enable smooth CSS transitions for UI state changes like sidebar collapse */
+  SMOOTH_ANIMATIONS: "smooth_animations",
 } as const;
 
 export type ExperimentName = (typeof Experiments)[keyof typeof Experiments];
@@ -29,6 +31,7 @@ const experimentConfig: Record<ExperimentName, boolean> = {
   [Experiments.EXTENDED_MARKDOWN]: true,
   [Experiments.SCROLL_SYNC_POLISH]: false,
   [Experiments.QOL_FEATURES]: true,
+  [Experiments.SMOOTH_ANIMATIONS]: true,
 };
 
 export function isEnabled(experiment: ExperimentName): boolean {
