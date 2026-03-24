@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { UIEventHandler } from "react";
 import { Minimize2 } from "lucide-react";
+import "katex/dist/katex.min.css";
 import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { PreviewPane } from "./components/PreviewPane";
 import { NoteSearch } from "./components/NoteSearch";
 import { ShortcutsModal } from "./components/ShortcutsModal";
+import { StatusBar } from "./components/StatusBar";
 import { EditorPane } from "./editor/EditorPane";
 import { renderMarkdown } from "./preview/markdownRenderer";
 import {
@@ -661,13 +663,33 @@ export default function App() {
     }
 
     const previewElement = previewScrollRef.current;
-    if (!previewElement) {
+    const editorElement = event.currentTarget;
+    if (!previewElement || !editorElement) {
       return;
     }
 
-    const ratio = getScrollRatio(event.currentTarget);
     setSyncSource("editor");
-    applyScrollRatio(previewElement, ratio);
+
+    if (isEnabled(Experiments.SCROLL_SYNC_POLISH)) {
+      const line = Math.floor(editorElement.scrollTop / (fontSize * 1.6)) + 1;
+      const lines = Array.from(previewElement.querySelectorAll('.line')) as HTMLElement[];
+      let targetEl: HTMLElement | null = null;
+      for (const el of lines) {
+        if (parseInt(el.getAttribute('data-line') || '0', 10) <= line) {
+          targetEl = el;
+        } else {
+          break;
+        }
+      }
+      if (targetEl) {
+        previewElement.scrollTop = targetEl.offsetTop;
+      } else {
+        applyScrollRatio(previewElement, getScrollRatio(editorElement));
+      }
+    } else {
+      const ratio = getScrollRatio(editorElement);
+      applyScrollRatio(previewElement, ratio);
+    }
   };
 
   const handlePreviewScroll: UIEventHandler<HTMLDivElement> = (event) => {
@@ -679,13 +701,29 @@ export default function App() {
     }
 
     const editorElement = editorScrollRef.current;
-    if (!editorElement) {
+    const previewElement = event.currentTarget;
+    if (!editorElement || !previewElement) {
       return;
     }
 
-    const ratio = getScrollRatio(event.currentTarget);
     setSyncSource("preview");
-    applyScrollRatio(editorElement, ratio);
+
+    if (isEnabled(Experiments.SCROLL_SYNC_POLISH)) {
+      const previewScrollTop = previewElement.scrollTop;
+      const lines = Array.from(previewElement.querySelectorAll('.line')) as HTMLElement[];
+      let targetLine = 1;
+      for (const el of lines) {
+        if (el.offsetTop <= previewScrollTop + 10) {
+          targetLine = parseInt(el.getAttribute('data-line') || '1', 10);
+        } else {
+          break;
+        }
+      }
+      editorElement.scrollTop = (targetLine - 1) * (fontSize * 1.6);
+    } else {
+      const ratio = getScrollRatio(previewElement);
+      applyScrollRatio(editorElement, ratio);
+    }
   };
 
   const handleViewModeChange = (mode: ViewMode) => {
@@ -786,7 +824,7 @@ export default function App() {
 
   return (
     <main
-      className={`app-shell ${isSidebarCollapsed ? "sidebar-collapsed" : ""} ${isResizingSidebar ? "resizing-sidebar" : ""} ${isZenMode ? "zen-mode" : ""}`}
+      className={`app-shell ${!showSidebar ? "sidebar-collapsed" : ""} ${isResizingSidebar ? "resizing-sidebar" : ""} ${isZenMode ? "zen-mode" : ""}`}
       style={showSidebar ? { gridTemplateColumns: `${sidebarWidth}px 8px 1fr` } : undefined}
     >
       {showSidebar ? (
@@ -906,9 +944,11 @@ export default function App() {
               fontSize={fontSize}
               noteSearchQuery={isNoteSearchOpen ? noteSearchQuery : ""}
               noteSearchMatchIndex={noteSearchMatchIndex}
+              theme={resolvedTheme}
             />
           ) : null}
         </div>
+        <StatusBar content={activeNote?.content ?? ""} />
       </section>
       {isShortcutsOpen ? (
         <ShortcutsModal shortcuts={shortcutItems} onClose={() => setIsShortcutsOpen(false)} />

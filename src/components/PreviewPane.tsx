@@ -10,6 +10,7 @@ type PreviewPaneProps = {
   fontSize: number;
   noteSearchQuery?: string;
   noteSearchMatchIndex?: number;
+  theme?: string;
 };
 
 function walkAndHighlight(node: Node, query: string): void {
@@ -43,6 +44,9 @@ function walkAndHighlight(node: Node, query: string): void {
   }
   for (const child of Array.from(node.childNodes)) walkAndHighlight(child, query);
 }
+
+import { Experiments, isEnabled } from "../config/experiments";
+import mermaid from "mermaid";
 
 function buildHighlightedHtml(html: string, query: string): string {
   if (!query.trim()) return html;
@@ -124,7 +128,12 @@ function extractPreviewText(root: HTMLElement): string {
   return lines.join("\n").trim();
 }
 
-export function PreviewPane({ html, canCopy, previewContentRef, onPreviewScroll, fontSize, noteSearchQuery = "", noteSearchMatchIndex = 0 }: PreviewPaneProps) {
+// Initialize mermaid outside component
+if (isEnabled(Experiments.EXTENDED_MARKDOWN)) {
+  mermaid.initialize({ startOnLoad: false, theme: 'default', suppressErrorRendering: true });
+}
+
+export function PreviewPane({ html, canCopy, previewContentRef, onPreviewScroll, fontSize, noteSearchQuery = "", noteSearchMatchIndex = 0, theme = "light" }: PreviewPaneProps) {
   const [copied, setCopied] = useState(false);
   const [isTocOpen, setIsTocOpen] = useState(false);
   const tocRef = useRef<HTMLDivElement | null>(null);
@@ -143,7 +152,40 @@ export function PreviewPane({ html, canCopy, previewContentRef, onPreviewScroll,
       m.classList.toggle("search-highlight--active", i === noteSearchMatchIndex);
     });
     marks[noteSearchMatchIndex]?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [highlightedHtml, noteSearchMatchIndex]);
+
+    // Render Mermaid diagrams
+    if (isEnabled(Experiments.EXTENDED_MARKDOWN)) {
+      mermaid.initialize({ startOnLoad: false, theme: theme === 'dark' ? 'dark' : 'default', suppressErrorRendering: true });
+      const renderTimer = setTimeout(() => {
+        const runMermaid = async () => {
+          try {
+            const els = el.querySelectorAll<HTMLElement>('.mermaid');
+            for (let i = 0; i < els.length; i++) {
+              const m = els[i];
+              const processedTheme = m.getAttribute('data-processed-theme');
+              if (processedTheme === theme) continue;
+
+              m.setAttribute('data-processed-theme', theme);
+              m.setAttribute('data-processed', 'true');
+              try {
+                const code = m.getAttribute('data-code') || m.textContent || '';
+                const id = `mermaid-${Date.now()}-${i}`;
+                const { svg } = await mermaid.render(id, code);
+                m.innerHTML = svg;
+              } catch (e) {
+                // Squelch errors for incomplete syntax as the user is typing
+              }
+            }
+          } catch (e) {
+            // Ignore
+          }
+        };
+        void runMermaid();
+      }, 500);
+
+      return () => clearTimeout(renderTimer);
+    }
+  }, [highlightedHtml, noteSearchMatchIndex, theme]);
 
   useEffect(() => {
     if (!isTocOpen) return;

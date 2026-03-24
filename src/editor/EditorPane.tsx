@@ -53,12 +53,50 @@ export function EditorPane({
     }
   }, [noteSearchQuery, noteSearchMatchIndex, content, fontSize]);
 
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!isEnabled(Experiments.QOL_FEATURES)) return;
+    const hasImage = Array.from(e.dataTransfer.types).some(t => t === 'Files');
+    if (hasImage) e.preventDefault();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    if (!isEnabled(Experiments.QOL_FEATURES)) return;
+    
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+    if (files.length === 0) return;
+    e.preventDefault();
+
+    let newContentAdditions = "";
+    for (const file of files) {
+      const reader = new FileReader();
+      const dataUrl = await new Promise<string>((resolve) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+      newContentAdditions += `\n![${file.name}](${dataUrl})\n`;
+    }
+    
+    if (textAreaRef.current) {
+      const start = textAreaRef.current.selectionStart;
+      const end = textAreaRef.current.selectionEnd;
+      const newContent = content.substring(0, start) + newContentAdditions + content.substring(end);
+      onContentChange(newContent);
+    } else {
+      // For CodeMirror, just append if we don't have direct access
+      onContentChange(content + newContentAdditions);
+    }
+  };
+
   const lastUpdatedLabel = updatedAt
     ? new Date(updatedAt).toLocaleString()
     : "Not saved yet";
 
   return (
-    <section className="editor-pane">
+    <section 
+      className="editor-pane"
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       <div className="editor-header">
         <input
           className="title-input"
