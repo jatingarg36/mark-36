@@ -25,6 +25,7 @@ import {
 import type { Note, Theme, ViewMode } from "./types";
 import { debounce } from "./utils/debounce";
 import { exportToDocx } from "./utils/exportDocx";
+import { triggerBrowserFileDownload } from "./utils/browserDownload";
 import { Experiments, isEnabled } from "./config/experiments";
 import {
   applyChromeThemeColors,
@@ -461,18 +462,21 @@ export default function App() {
     }
 
     const blob = new Blob([activeNote.content], { type: "text/markdown;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
     const safeName = activeNote.title.replace(/[^a-z0-9-_]+/gi, "_").replace(/^_+|_+$/g, "");
     const filename = `${safeName || "note"}.md`;
 
-    chrome.downloads.download({
-      url,
-      filename,
-      conflictAction: "uniquify",
-      saveAs: true
-    });
-
-    window.setTimeout(() => URL.revokeObjectURL(url), 5_000);
+    if (typeof chrome !== "undefined" && chrome.downloads?.download) {
+      const url = URL.createObjectURL(blob);
+      chrome.downloads.download({
+        url,
+        filename,
+        conflictAction: "uniquify",
+        saveAs: true
+      });
+      window.setTimeout(() => URL.revokeObjectURL(url), 5_000);
+    } else {
+      triggerBrowserFileDownload(blob, filename);
+    }
   };
 
   const handleExportDocx = async () => {
@@ -481,23 +485,26 @@ export default function App() {
     let url: string | null = null;
     try {
       const blob = await exportToDocx(activeNote.title, activeNote.content);
-      url = URL.createObjectURL(blob);
       const safeName = activeNote.title.replace(/[^a-z0-9-_]+/gi, "_").replace(/^_+|_+$/g, "");
       const filename = `${safeName || "note"}.docx`;
 
-      chrome.downloads.download(
-        { url, filename, conflictAction: "uniquify", saveAs: true },
-        () => {
-          if (chrome.runtime.lastError) {
-            console.error("DOCX download failed:", chrome.runtime.lastError.message);
-            window.alert("Export failed. Please try again.");
+      if (typeof chrome !== "undefined" && chrome.downloads?.download) {
+        url = URL.createObjectURL(blob);
+        chrome.downloads.download(
+          { url, filename, conflictAction: "uniquify", saveAs: true },
+          () => {
+            if (chrome.runtime.lastError) {
+              console.error("DOCX download failed:", chrome.runtime.lastError.message);
+              window.alert("Export failed. Please try again.");
+            }
           }
-        }
-      );
-
-      window.setTimeout(() => {
-        if (url) URL.revokeObjectURL(url);
-      }, 5_000);
+        );
+        window.setTimeout(() => {
+          if (url) URL.revokeObjectURL(url);
+        }, 5_000);
+      } else {
+        triggerBrowserFileDownload(blob, filename);
+      }
     } catch (error) {
       console.error("Failed to generate DOCX:", error);
       window.alert("Failed to export document. Please try again.");

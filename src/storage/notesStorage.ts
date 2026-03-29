@@ -1,4 +1,5 @@
 import type { Note, Theme, WorkspaceState } from "../types";
+import { triggerBrowserFileDownload } from "../utils/browserDownload";
 
 const LEGACY_NOTES_KEY = "notes";
 const NOTES_PRIMARY_KEY = "notes_primary_v2";
@@ -8,6 +9,7 @@ const WORKSPACE_STATE_KEY = "workspace_state_v1";
 const STORAGE_SCHEMA_VERSION = 2;
 const DISK_BACKUP_FILENAME = "MarkdownNotesWorkspace/notes-backup.json";
 const BACKUP_PATH_KEY = "notes_backup_path";
+const WEB_STORAGE_PREFIX = "mark36:";
 
 type NotesPayload = {
   schemaVersion: number;
@@ -16,11 +18,72 @@ type NotesPayload = {
   checksum: string;
 };
 
-function getStorageArea() {
+/** Promise-based subset of chrome.storage.local used by this module. */
+type StorageAreaLike = {
+  get(keys: string | string[] | Record<string, unknown> | null): Promise<Record<string, unknown>>;
+  set(items: Record<string, unknown>): Promise<void>;
+};
+
+/**
+ * Persists the same JSON values as chrome.storage.local using localStorage (normal web browsers).
+ */
+function createLocalStorageArea(): StorageAreaLike {
+  return {
+    get(keys) {
+      return new Promise((resolve) => {
+        const result: Record<string, unknown> = {};
+        const keyList: string[] =
+          keys === null
+            ? []
+            : typeof keys === "string"
+              ? [keys]
+              : Array.isArray(keys)
+                ? keys
+                : Object.keys(keys as Record<string, unknown>);
+        for (const key of keyList) {
+          const raw = localStorage.getItem(WEB_STORAGE_PREFIX + key);
+          if (raw !== null) {
+            try {
+              result[key] = JSON.parse(raw);
+            } catch {
+              result[key] = raw;
+            }
+          }
+        }
+        if (keys && typeof keys === "object" && !Array.isArray(keys) && keys !== null) {
+          const defaults = keys as Record<string, unknown>;
+          for (const k of Object.keys(defaults)) {
+            if (!(k in result)) {
+              result[k] = defaults[k];
+            }
+          }
+        }
+        resolve(result);
+      });
+    },
+    set(items) {
+      return new Promise((resolve, reject) => {
+        try {
+          for (const [key, value] of Object.entries(items)) {
+            localStorage.setItem(WEB_STORAGE_PREFIX + key, JSON.stringify(value));
+          }
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      });
+    }
+  };
+}
+
+function getStorageArea(): StorageAreaLike {
   if (typeof chrome !== "undefined" && chrome.storage?.local) {
-    return chrome.storage.local;
+    return chrome.storage.local as unknown as StorageAreaLike;
   }
-  throw new Error("chrome.storage.local is unavailable.");
+  if (typeof localStorage !== "undefined") {
+    return createLocalStorageArea();
+  }
+  throw new Error("No storage backend available (chrome.storage.local or localStorage).");
 }
 
 async function sha256Hex(value: string): Promise<string> {
@@ -117,22 +180,24 @@ async function readValidPayload(raw: unknown): Promise<NotesPayload | null> {
 }
 
 async function writeDiskBackup(payload: NotesPayload, backupPath: string): Promise<void> {
-  if (typeof chrome === "undefined" || !chrome.downloads?.download) {
-    return;
-  }
-
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: "application/json;charset=utf-8"
   });
   const url = URL.createObjectURL(blob);
 
   try {
-    await chrome.downloads.download({
-      url,
-      filename: backupPath,
-      saveAs: false,
-      conflictAction: "overwrite"
-    });
+    if (typeof chrome !== "undefined" && chrome.downloads?.download) {
+      await chrome.downloads.download({
+        url,
+        filename: backupPath,
+        saveAs: false,
+        conflictAction: "overwrite"
+      });
+    } else {
+      const filename =
+        backupPath.split("/").pop()?.trim() || DISK_BACKUP_FILENAME.split("/").pop() || "notes-backup.json";
+      triggerBrowserFileDownload(blob, filename);
+    }
   } catch (error) {
     // Backup failures should not block core storage writes.
     console.error("Disk backup failed", error);

@@ -57,6 +57,7 @@ describe("notesStorage", () => {
 
   afterEach(() => {
     delete (globalThis as any).chrome;
+    delete (globalThis as any).localStorage;
   });
 
   // ── existing tests ──────────────────────────────────────────────────────────
@@ -344,5 +345,55 @@ describe("notesStorage", () => {
     });
     const loaded = await getWorkspaceState();
     expect(loaded).toBeNull();
+  });
+});
+
+describe("notesStorage (localStorage web fallback)", () => {
+  let ls: Record<string, string>;
+
+  beforeEach(() => {
+    if (!globalThis.crypto?.subtle) {
+      (globalThis as any).crypto = webcrypto;
+    }
+
+    delete (globalThis as any).chrome;
+    ls = {};
+    (globalThis as any).localStorage = {
+      getItem: (k: string) => (k in ls ? ls[k] : null),
+      setItem: (k: string, v: string) => {
+        ls[k] = v;
+      },
+      removeItem: (k: string) => {
+        delete ls[k];
+      },
+      clear: () => {
+        ls = {};
+      },
+      key: (i: number) => Object.keys(ls)[i] ?? null,
+      get length() {
+        return Object.keys(ls).length;
+      }
+    };
+  });
+
+  afterEach(() => {
+    delete (globalThis as any).localStorage;
+  });
+
+  it("saveAllNotes then getAllNotes round-trips via localStorage", async () => {
+    const notes: Note[] = [
+      {
+        id: "web-1",
+        title: "Web",
+        content: "Hello",
+        createdAt: new Date("2020-01-01").toISOString(),
+        updatedAt: new Date("2020-01-02").toISOString()
+      }
+    ];
+
+    await saveAllNotes(notes);
+    const loaded = await getAllNotes();
+    expect(loaded).toEqual(notes);
+    expect(ls["mark36:notes_primary_v2"]).toBeDefined();
   });
 });
