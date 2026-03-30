@@ -25,6 +25,12 @@ export const Experiments = {
   /** Enable smooth CSS transitions for UI state changes like sidebar collapse */
   SMOOTH_ANIMATIONS: "smooth_animations",
   /**
+   * Enables Google OAuth sign-in. When false, no auth UI is rendered, no tokens
+   * are read or written, and no requests are made to the auth backend.
+   * Flip to true to activate the sign-in feature end-to-end.
+   */
+  ENABLE_AUTH: "enable_auth",
+  /**
    * Sidebar organisation experiments — mutually exclusive.
    * Enable at most ONE of the three below at a time.
    */
@@ -46,6 +52,8 @@ const experimentConfig: Record<ExperimentName, boolean> = {
   [Experiments.SCROLL_SYNC_POLISH]: false,
   [Experiments.QOL_FEATURES]: true,
   [Experiments.SMOOTH_ANIMATIONS]: true,
+  // Auth experiment — off by default; flip to true to enable sign-in feature
+  [Experiments.ENABLE_AUTH]: false,
   // Sidebar experiments (combinable — enable any subset):
   [Experiments.SIDEBAR_FOLDERS_TAGS]: true,
   [Experiments.SIDEBAR_PINNING]: true,

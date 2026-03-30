@@ -1,7 +1,14 @@
 import { useState } from "react";
 import type { Note } from "../types";
-import { ArrowDown, ArrowLeftFromLine, ArrowUp, ChevronRight, FolderOpen, GripVertical, Pin, PinOff, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeftFromLine, ArrowUp, ChevronRight, FolderOpen, GripVertical, LogIn, LogOut, Pin, PinOff, Plus, Trash2 } from "lucide-react";
 import { Experiments, isEnabled } from "../config/experiments";
+
+/** Shape of the authenticated user that the sidebar needs to render. */
+export type SidebarAuthUser = {
+  name: string;
+  email: string;
+  avatar_url?: string | null;
+};
 
 function formatNoteDate(isoString: string): string {
   const date = new Date(isoString);
@@ -29,7 +36,91 @@ type SidebarProps = {
   onPinNote?: (noteId: string, pinned: boolean) => void;
   onSetFolder?: (noteId: string, folder: string | undefined) => void;
   onReorderNotes?: (noteIds: string[]) => void;
+  // Auth props — only used when experiments.ENABLE_AUTH is true
+  authUser?: SidebarAuthUser | null;
+  onSignIn?: () => void;
+  onSignOut?: () => void;
 };
+
+/** Avatar with graceful fallback to initials. */
+function Avatar({ user }: { user: SidebarAuthUser }) {
+  const initials = user.name
+    .split(" ")
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+  if (user.avatar_url) {
+    return (
+      <img
+        src={user.avatar_url}
+        alt={user.name}
+        className="sidebar-avatar"
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
+  return <div className="sidebar-avatar sidebar-avatar-initials" aria-hidden="true">{initials}</div>;
+}
+
+/** Auth footer — sign-in button or user row. Collapses naturally with the sidebar. */
+function SidebarAuthFooter({
+  authUser,
+  onSignIn,
+  onSignOut,
+}: {
+  authUser?: SidebarAuthUser | null;
+  onSignIn?: () => void;
+  onSignOut?: () => void;
+}) {
+  if (!isEnabled(Experiments.ENABLE_AUTH)) return null;
+
+  if (!authUser) {
+    // Signed-out state
+    return (
+      <div className="sidebar-auth-footer">
+        <button
+          id="sidebar-sign-in-btn"
+          className="note-item sidebar-sign-in-btn"
+          onClick={onSignIn}
+          title="Sign in"
+          aria-label="Sign in to your account"
+        >
+          <div className="note-item-top">
+            <LogIn aria-hidden="true" size={15} strokeWidth={2} />
+            <span className="note-title">Sign In</span>
+          </div>
+        </button>
+      </div>
+    );
+  }
+
+  // Signed-in state
+  return (
+    <div className="sidebar-auth-footer">
+      <div className="sidebar-user-row">
+        <Avatar user={authUser} />
+        <span className="sidebar-user-name" title={authUser.email}>
+          {authUser.name}
+        </span>
+        <span
+          className="delete-note-btn"
+          role="button"
+          tabIndex={0}
+          title="Sign out"
+          aria-label="Sign out"
+          onClick={onSignOut}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSignOut?.(); }
+          }}
+        >
+          <LogOut aria-hidden="true" size={15} strokeWidth={2} />
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export function Sidebar({
   notes,
@@ -43,6 +134,9 @@ export function Sidebar({
   onPinNote,
   onSetFolder,
   onReorderNotes,
+  authUser,
+  onSignIn,
+  onSignOut,
 }: SidebarProps) {
   const showPinning = isEnabled(Experiments.SIDEBAR_PINNING);
   const showFoldersTags = isEnabled(Experiments.SIDEBAR_FOLDERS_TAGS);
@@ -293,6 +387,7 @@ export function Sidebar({
             ))
           )}
         </div>
+        <SidebarAuthFooter authUser={authUser} onSignIn={onSignIn} onSignOut={onSignOut} />
       </aside>
     );
   }
@@ -450,6 +545,7 @@ export function Sidebar({
           </>
         )}
       </div>
+      <SidebarAuthFooter authUser={authUser} onSignIn={onSignIn} onSignOut={onSignOut} />
     </aside>
   );
 }

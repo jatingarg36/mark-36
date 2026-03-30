@@ -3,9 +3,11 @@ import type { UIEventHandler } from "react";
 import { Minimize2 } from "lucide-react";
 import "katex/dist/katex.min.css";
 import { Sidebar } from "./components/Sidebar";
+import type { SidebarAuthUser } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { NoteSearch } from "./components/NoteSearch";
 import { ShortcutsModal } from "./components/ShortcutsModal";
+import { SignInModal } from "./components/SignInModal";
 import { StatusBar } from "./components/StatusBar";
 
 const EditorPane = lazy(() => import("./editor/EditorPane").then(m => ({ default: m.EditorPane })));
@@ -33,6 +35,8 @@ import {
   loadChromeFrameColor,
   subscribeChromeThemeChanges
 } from "./utils/chromeTheme";
+import { apiFetch } from "./utils/apiClient";
+import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "./utils/storage";
 
 const AUTOSAVE_DELAY_MS = 450;
 const DEFAULT_NOTE_TITLE = "Untitled note";
@@ -174,6 +178,10 @@ export default function App() {
   const [isZenMode, setIsZenMode] = useState(false);
   const [noteSearchQuery, setNoteSearchQuery] = useState("");
   const [noteSearchMatchIndex, setNoteSearchMatchIndex] = useState(0);
+  // ── Auth state (only active when experiments.ENABLE_AUTH is true) ───────
+  const [authUser, setAuthUser] = useState<SidebarAuthUser | null>(null);
+  const [isSignInModalOpen, setIsSignInModalOpen] = useState(false);
+  // ────────────────────────────────────────────────────────────────────────
   const hydratedRef = useRef(false);
   const splitLayoutRef = useRef<HTMLDivElement | null>(null);
   const editorScrollRef = useRef<HTMLTextAreaElement | null>(null);
@@ -219,6 +227,62 @@ export default function App() {
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
   }, []);
+
+  // ── Auth: startup token restore + OAuth callback detection ──────────────
+  useEffect(() => {
+    if (!isEnabled(Experiments.ENABLE_AUTH)) return;
+
+    async function restoreAuthSession() {
+      // 1. Check for OAuth callback: tokens arrive as URL query params.
+      //    The backend callback redirects here as:
+      //    ?access_token=<jwt>&refresh_token=<uuid>
+      const params = new URLSearchParams(window.location.search);
+      const callbackAccessToken = params.get("access_token");
+      const callbackRefreshToken = params.get("refresh_token");
+
+      if (callbackAccessToken && callbackRefreshToken) {
+        // Store tokens and strip them from the URL bar immediately
+        await setTokens(callbackAccessToken, callbackRefreshToken);
+        const cleanUrl = window.location.pathname + window.location.hash;
+        window.history.replaceState(null, "", cleanUrl);
+      }
+
+      // 2. Try to load existing session from storage (covers both fresh callback
+      //    and page reloads with a valid stored token).
+      const storedToken = await getAccessToken();
+      const storedRefresh = await getRefreshToken();
+      if (!storedToken && !storedRefresh) return; // not signed in
+
+      try {
+        const resp = await apiFetch("/users/me");
+        if (resp.ok) {
+          const user = (await resp.json()) as SidebarAuthUser;
+          setAuthUser(user);
+        } else {
+          // Access token invalid or expired and refresh failed — clear state
+          await clearTokens();
+        }
+      } catch {
+        // Network error — stay signed out silently
+      }
+    }
+
+    void restoreAuthSession();
+  }, []);
+
+  // ── Auth: listen for sign-out events from apiClient.ts ──────────────────
+  useEffect(() => {
+    if (!isEnabled(Experiments.ENABLE_AUTH)) return;
+
+    function handleAuthSignOut() {
+      setAuthUser(null);
+      setIsSignInModalOpen(false);
+    }
+
+    window.addEventListener("authSignOut", handleAuthSignOut);
+    return () => window.removeEventListener("authSignOut", handleAuthSignOut);
+  }, []);
+  // ────────────────────────────────────────────────────────────────────────
 
   const resolvedTheme = theme === "system" ? (systemIsDark ? "dark" : "light") : theme;
 
@@ -874,6 +938,12 @@ export default function App() {
             onPinNote={handlePinNote}
             onSetFolder={handleSetFolder}
             onReorderNotes={handleReorderNotes}
+            authUser={isEnabled(Experiments.ENABLE_AUTH) ? authUser : undefined}
+            onSignIn={isEnabled(Experiments.ENABLE_AUTH) ? () => setIsSignInModalOpen(true) : undefined}
+            onSignOut={isEnabled(Experiments.ENABLE_AUTH) ? async () => {
+              await clearTokens();
+              setAuthUser(null);
+            } : undefined}
           />
           <div
             className="sidebar-resizer"
@@ -992,6 +1062,9 @@ export default function App() {
       </section>
       {isShortcutsOpen ? (
         <ShortcutsModal shortcuts={shortcutItems} onClose={() => setIsShortcutsOpen(false)} />
+      ) : null}
+      {isEnabled(Experiments.ENABLE_AUTH) && isSignInModalOpen ? (
+        <SignInModal onClose={() => setIsSignInModalOpen(false)} />
       ) : null}
     </main>
   );
