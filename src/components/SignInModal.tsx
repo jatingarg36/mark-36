@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { getRuntimeConfig } from "../config/runtimeConfig";
 
 type SignInModalProps = {
   onClose: () => void;
@@ -48,8 +49,7 @@ function GoogleLogo({ size = 18 }: { size?: number }) {
   );
 }
 
-const API_BASE: string =
-  (import.meta as { env?: Record<string, string> }).env?.VITE_API_BASE_URL ?? "http://localhost:8000";
+const API_BASE: string = getRuntimeConfig("VITE_API_BASE_URL", "/api");
 
 export function SignInModal({ onClose }: SignInModalProps) {
   const [isLoading, setIsLoading] = useState(false);
