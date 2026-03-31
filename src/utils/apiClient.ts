@@ -15,10 +15,11 @@
  * Only imported/used when experiments.ENABLE_AUTH is true.
  */
 
+import { getRuntimeConfig } from "../config/runtimeConfig";
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "./storage";
 
-/** Base URL for all backend calls.  Set VITE_API_BASE_URL in .env.local. */
-const API_BASE: string = (import.meta as { env?: Record<string, string> }).env?.VITE_API_BASE_URL ?? "http://localhost:8000";
+/** Base URL for all backend calls. Resolves via runtime config (Docker) or build-time env (Vite). */
+const API_BASE: string = getRuntimeConfig("VITE_API_BASE_URL", "/api");
 
 // ---------------------------------------------------------------------------
 // JWT exp helpers
