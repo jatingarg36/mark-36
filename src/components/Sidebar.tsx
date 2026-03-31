@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Note } from "../types";
 import { ArrowDown, ArrowLeftFromLine, ArrowUp, ChevronRight, FolderOpen, GripVertical, LogIn, LogOut, Pin, PinOff, Plus, Trash2 } from "lucide-react";
-import { Experiments, isEnabled } from "../config/experiments";
+import { Experiments, isEnabled, useExperimentFlag } from "../config/experiments";
 
 /** Shape of the authenticated user that the sidebar needs to render. */
 export type SidebarAuthUser = {
@@ -74,7 +74,8 @@ function SidebarAuthFooter({
   onSignIn?: () => void;
   onSignOut?: () => void;
 }) {
-  if (!isEnabled(Experiments.ENABLE_AUTH)) return null;
+  const isAuthEnabled = useExperimentFlag(Experiments.ENABLE_AUTH);
+  if (!isAuthEnabled) return null;
 
   if (!authUser) {
     // Signed-out state
@@ -138,9 +139,9 @@ export function Sidebar({
   onSignIn,
   onSignOut,
 }: SidebarProps) {
-  const showPinning = isEnabled(Experiments.SIDEBAR_PINNING);
-  const showFoldersTags = isEnabled(Experiments.SIDEBAR_FOLDERS_TAGS);
-  const showDragDrop = isEnabled(Experiments.SIDEBAR_DRAG_DROP);
+  const showPinning = useExperimentFlag(Experiments.SIDEBAR_PINNING);
+  const showFoldersTags = useExperimentFlag(Experiments.SIDEBAR_FOLDERS_TAGS);
+  const showDragDrop = useExperimentFlag(Experiments.SIDEBAR_DRAG_DROP);
 
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);

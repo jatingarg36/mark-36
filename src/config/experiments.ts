@@ -9,6 +9,9 @@
  * of each other — enable any subset you like.
  */
 
+import { useFeatureGate, useStatsigClient } from "@statsig/react-bindings";
+import { statsigClient } from "./statsig";
+
 export const Experiments = {
   /** Export the active note as a Word (.docx) document. */
   EXPORT_DOCX: "export_docx",
@@ -52,16 +55,34 @@ const experimentConfig: Record<ExperimentName, boolean> = {
   [Experiments.SCROLL_SYNC_POLISH]: false,
   [Experiments.QOL_FEATURES]: true,
   [Experiments.SMOOTH_ANIMATIONS]: true,
-  // Auth experiment — off by default; flip to true to enable sign-in feature
   [Experiments.ENABLE_AUTH]: false,
-  // Sidebar experiments (combinable — enable any subset):
   [Experiments.SIDEBAR_FOLDERS_TAGS]: true,
   [Experiments.SIDEBAR_PINNING]: true,
   [Experiments.SIDEBAR_DRAG_DROP]: false,
 };
 
+/** React hook to get a feature flag value from Statsig with fallback to local config. */
+export function useExperimentFlag(experiment: ExperimentName): boolean {
+  const { isLoading } = useStatsigClient();
+  const { value } = useFeatureGate(experiment);
+  
+  // If SDK is still loading, return the local fallback.
+  if (isLoading) {
+    return experimentConfig[experiment] ?? false;
+  }
+
+  return value;
+}
+
+/** Synchronous check for feature flags, useful in non-React code. */
 export function isEnabled(experiment: ExperimentName): boolean {
-  return experimentConfig[experiment] ?? false;
+  try {
+    // Attempt to use Statsig client for synchronous check
+    return statsigClient.checkGate(experiment) || experimentConfig[experiment] || false;
+  } catch (error) {
+    // Catch if statsigClient is not initialized yet or checkGate fails
+    return experimentConfig[experiment] ?? false;
+  }
 }
 
 /** Union of all sidebar-organisation experiment names. */
