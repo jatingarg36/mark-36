@@ -16,6 +16,9 @@
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.5.0",
+    "@statsig/react-bindings": "^3.32.3",
+    "@statsig/session-replay": "^3.32.3",
+    "@statsig/web-analytics": "^3.32.3",
     "@uiw/react-codemirror": "^4.25.8",
     "docx": "^9.6.1",
     "highlight.js": "^11.11.1",
