@@ -28,7 +28,7 @@ import type { Note, Theme, ViewMode } from "./types";
 import { debounce } from "./utils/debounce";
 import { exportToDocx } from "./utils/exportDocx";
 import { triggerBrowserFileDownload } from "./utils/browserDownload";
-import { Experiments, isEnabled } from "./config/experiments";
+import { Experiments, isEnabled, useExperimentFlag } from "./config/experiments";
 import {
   applyChromeThemeColors,
   clearChromeThemeColors,
@@ -182,6 +182,11 @@ export default function App() {
   const [authUser, setAuthUser] = useState<SidebarAuthUser | null>(null);
   const [isSignInModalOpen, setIsSignInModalOpen] = useState(false);
   // ────────────────────────────────────────────────────────────────────────
+
+  const isAuthEnabled = useExperimentFlag(Experiments.ENABLE_AUTH);
+  const isScrollSyncPolishEnabled = useExperimentFlag(Experiments.SCROLL_SYNC_POLISH);
+  const isDragDropEnabled = useExperimentFlag(Experiments.SIDEBAR_DRAG_DROP);
+
   const hydratedRef = useRef(false);
   const splitLayoutRef = useRef<HTMLDivElement | null>(null);
   const editorScrollRef = useRef<HTMLTextAreaElement | null>(null);
@@ -230,7 +235,7 @@ export default function App() {
 
   // ── Auth: startup token restore + OAuth callback detection ──────────────
   useEffect(() => {
-    if (!isEnabled(Experiments.ENABLE_AUTH)) return;
+    if (!isAuthEnabled) return;
 
     async function restoreAuthSession() {
       // 1. Check for OAuth callback: tokens arrive as URL query params.
@@ -272,7 +277,7 @@ export default function App() {
 
   // ── Auth: listen for sign-out events from apiClient.ts ──────────────────
   useEffect(() => {
-    if (!isEnabled(Experiments.ENABLE_AUTH)) return;
+    if (!isAuthEnabled) return;
 
     function handleAuthSignOut() {
       setAuthUser(null);
@@ -396,7 +401,7 @@ export default function App() {
 
     // Drag-drop experiment: preserve notes array order (array IS the sort order).
     // Fall back to updatedAt sort when a search term is active.
-    if (isEnabled(Experiments.SIDEBAR_DRAG_DROP) && !normalizedQuery) {
+    if (isDragDropEnabled && !normalizedQuery) {
       return [...notes];
     }
 
@@ -754,7 +759,7 @@ export default function App() {
 
     setSyncSource("editor");
 
-    if (isEnabled(Experiments.SCROLL_SYNC_POLISH)) {
+    if (isScrollSyncPolishEnabled) {
       const line = Math.floor(editorElement.scrollTop / (fontSize * 1.6)) + 1;
       const lines = Array.from(previewElement.querySelectorAll('.line')) as HTMLElement[];
       let targetEl: HTMLElement | null = null;
@@ -792,7 +797,7 @@ export default function App() {
 
     setSyncSource("preview");
 
-    if (isEnabled(Experiments.SCROLL_SYNC_POLISH)) {
+    if (isScrollSyncPolishEnabled) {
       const previewScrollTop = previewElement.scrollTop;
       const lines = Array.from(previewElement.querySelectorAll('.line')) as HTMLElement[];
       let targetLine = 1;

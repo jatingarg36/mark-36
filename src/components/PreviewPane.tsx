@@ -47,7 +47,7 @@ function walkAndHighlight(node: Node, query: string): void {
   for (const child of Array.from(node.childNodes)) walkAndHighlight(child, query);
 }
 
-import { Experiments, isEnabled } from "../config/experiments";
+import { Experiments, isEnabled, useExperimentFlag } from "../config/experiments";
 
 function buildHighlightedHtml(html: string, query: string): string {
   if (!query.trim()) return html;
@@ -153,6 +153,8 @@ export function PreviewPane({ content, canCopy, previewContentRef, onPreviewScro
     [html, noteSearchQuery]
   );
 
+  const isExtendedMarkdownEnabled = useExperimentFlag(Experiments.EXTENDED_MARKDOWN);
+
   // Mark the active search match and scroll it into view
   useEffect(() => {
     const el = previewContentRef.current;
@@ -164,7 +166,7 @@ export function PreviewPane({ content, canCopy, previewContentRef, onPreviewScro
     marks[noteSearchMatchIndex]?.scrollIntoView({ behavior: "smooth", block: "center" });
 
     // Render Mermaid diagrams
-    if (isEnabled(Experiments.EXTENDED_MARKDOWN)) {
+    if (isExtendedMarkdownEnabled) {
       const renderTimer = setTimeout(() => {
         const runMermaid = async () => {
           try {

@@ -1,6 +1,6 @@
 import type { Theme } from "../types";
 import { Archive, ArrowRightFromLine, Download, Focus, Keyboard, Link2, Monitor, Moon, Sun, Upload } from "lucide-react";
-import { Experiments, isEnabled } from "../config/experiments";
+import { Experiments, isEnabled, useExperimentFlag } from "../config/experiments";
 
 type ViewMode = "editor" | "split" | "preview";
 
@@ -212,7 +212,7 @@ export function TopBar({
 
         <div className="topbar-divider" />
 
-        {isEnabled(Experiments.ZEN_MODE) && (
+        {useExperimentFlag(Experiments.ZEN_MODE) && (
           <button
             className={`button topbar-icon-btn ${isZenMode ? "active" : ""}`}
             onClick={onZenModeToggle}

@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import type { RefObject, UIEventHandler } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
-import { Experiments, isEnabled } from "../config/experiments";
+import { Experiments, isEnabled, useExperimentFlag } from "../config/experiments";
 import { MarkdownToolbar } from "./MarkdownToolbar";
 
 type EditorPaneProps = {
@@ -32,6 +32,9 @@ export function EditorPane({
   noteSearchQuery = "",
   noteSearchMatchIndex = 0,
 }: EditorPaneProps) {
+  const isQolFeaturesEnabled = useExperimentFlag(Experiments.QOL_FEATURES);
+  const isEditorUpgradeEnabled = useExperimentFlag(Experiments.EDITOR_UPGRADE);
+
   useEffect(() => {
     const textarea = textAreaRef.current;
     if (!textarea || !noteSearchQuery.trim()) return;
@@ -54,13 +57,13 @@ export function EditorPane({
   }, [noteSearchQuery, noteSearchMatchIndex, content, fontSize]);
 
   const handleDragOver = (e: React.DragEvent) => {
-    if (!isEnabled(Experiments.QOL_FEATURES)) return;
+    if (!isQolFeaturesEnabled) return;
     const hasImage = Array.from(e.dataTransfer.types).some(t => t === 'Files');
     if (hasImage) e.preventDefault();
   };
 
   const handleDrop = async (e: React.DragEvent) => {
-    if (!isEnabled(Experiments.QOL_FEATURES)) return;
+    if (!isQolFeaturesEnabled) return;
     
     const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
     if (files.length === 0) return;
@@ -112,7 +115,7 @@ export function EditorPane({
         content={content}
         textAreaRef={textAreaRef}
       />
-      {isEnabled(Experiments.EDITOR_UPGRADE) ? (
+      {isEditorUpgradeEnabled ? (
         <div 
           className="markdown-input codemirror-wrapper" 
           style={{ fontSize: `${fontSize}px`, overflow: "auto" }}
